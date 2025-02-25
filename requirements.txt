@@ -10,3 +10,4 @@ requests
 flask-migrate
 flask-bcrypt
 flask-login
+APScheduler==3.9.1
