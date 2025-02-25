@@ -17,6 +17,9 @@ apt-get update -y
 echo "Installing ODBC Driver 18 for SQL Server..."
 ACCEPT_EULA=Y apt-get install -y msodbcsql18 odbcinst libodbc1
 
+echo "Setting LD_LIBRARY_PATH to include ODBC driver libraries..."
+export LD_LIBRARY_PATH=/opt/microsoft/msodbcsql18/lib64:$LD_LIBRARY_PATH
+
 echo "Listing installed ODBC drivers:"
 odbcinst -q -d
 
