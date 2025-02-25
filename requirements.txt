@@ -1,0 +1,12 @@
+flask
+flask_sqlalchemy
+python-dotenv
+stellar-sdk
+twilio
+Flask_WTF
+flask-login
+gunicorn
+requests
+flask-migrate
+flask-bcrypt
+flask-login

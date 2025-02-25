@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Send Money{% endblock %}
+
+{% block content %}
+<h2>Send Money</h2>
+
+{% with messages = get_flashed_messages(with_categories=True) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<p><strong>Exchange Rate:</strong> 1 ZAR = {{ exchange_rate }} USD</p>
+
+<form method="post" action="{{ url_for('send_money') }}">
+    {{ form.hidden_tag() }}  <!-- ✅ CSRF protection -->
+
+    <div class="form-group">
+        <label for="amount">{{ form.amount.label }}</label>
+        {{ form.amount(class="form-control", placeholder="Enter amount in ZAR", required="required") }}
+    </div>
+
+    <p><strong>Converted Amount:</strong> <span id="converted_amount">0.00</span> USD (including fees)</p>
+
+    <div class="form-group">
+    <label for="beneficiary">Select Beneficiary</label>
+    <select name="beneficiary_id" id="beneficiary" required>
+        {% for beneficiary in beneficiaries %}
+        <option value="{{ beneficiary.id }}">{{ beneficiary.full_name }} ({{ beneficiary.currency }})</option>
+        {% endfor %}
+    </select>
+
+    <label for="amount">Amount</label>
+    <input type="text" name="amount" id="amount" required>
+
+    <div class="form-group">
+        <label for="currency">Choose Currency:</label>
+        <select name="currency" id="currency">
+            <option value="USD">US Dollar (USD)</option>
+            <option value="EUR">Euro (EUR)</option>
+            <option value="GBP">British Pound (GBP)</option>
+            <option value="CNY">Chinese Yuan (CNY)</option>
+            <option value="BWP">Botswana Pula (BWP)</option>
+            <option value="ZAR">South African Rand (ZAR)</option>
+       </select>
+    </div>
+
+    <div class="form-group">
+        <label for="payout_method">{{ form.payout_method.label }}</label>
+        {{ form.payout_method(class="form-control") }}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Send Money Instantly</button>
+</form>
+
+<script>
+    document.getElementById("amount").addEventListener("input", function() {
+        let zarAmount = parseFloat(this.value) || 0;
+        let exchangeRate = {{ exchange_rate }};
+        let convertedAmount = (zarAmount * exchangeRate).toFixed(2);
+        document.getElementById("converted_amount").textContent = convertedAmount;
+    });
+</script>
+
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="container mt-4">
+    <h2 class="text-center">Dashboard</h2>
+    <p><strong>Welcome, {{ user.username }}!</strong></p>
+    <p>Your unique account number: <strong>{{ user.account_number }}</strong></p>
+    <p>Your current balance: <strong>ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
+
+    <!-- Currency Selection -->
+    <h3>Select Preferred Currency</h3>
+    <select id="currencySelector" class="form-control">
+        <option value="ZAR" selected>ZAR</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="CNY">CNY</option>
+        <option value="BWP">BWP</option>
+    </select>
+
+    <!-- Live Exchange Rate & Converted Balance -->
+    <h3>Live Exchange Rate</h3>
+    <p><strong>1 ZAR = </strong><span id="exchangeRate">Fetching...</span> <strong><span id="currencyLabel">USD</span></strong></p>
+    <p><strong>Converted Balance:</strong> <span id="convertedBalance">0.00</span> <span id="currencyLabel2">USD</span></p>
+
+    <h3>How It Works</h3>
+    <ol>
+        <li>Complete your profile for compliance.</li>
+        <li>Deposit ZAR into your assigned account.</li>
+        <li>Check live exchange rates.</li>
+        <li>Add a beneficiary with full banking details.</li>
+        <li>Send money instantly via bank or mobile money.</li>
+    </ol>
+
+    <!-- Profile Completion -->
+    {% if not user.id_number or not user.address %}
+        <p class="text-danger"><strong>Complete your profile to proceed.</strong></p>
+        <a href="{{ url_for('edit_profile') }}" class="btn btn-warning">Update Profile</a>
+    {% endif %}
+
+    <!-- Deposit Information -->
+    <h3>Deposit Instructions</h3>
+    <div class="alert alert-info">
+        <p><strong>Account Name:</strong> iTradeAfrika</p>
+        <p><strong>Bank:</strong> CAPITEC Business</p>
+        <p><strong>Account Number:</strong> 1052923917</p>
+        <p><strong>Branch Code:</strong> 45105</p>
+        <p><strong>Swift Code:</strong> CABLZAJJ</p>
+        <p><strong>Email Address:</strong> admin@tradeafrika.co.za</p>
+        <p><strong>WhatsApp Support:</strong> (+27)073-916-1782</p>
+        <p><strong>Reference:</strong> {{ user.id }}</p>
+    </div>
+
+    <hr>
+    <div class="mb-3">
+        <a href="{{ url_for('deposit') }}" class="btn btn-info">Confirm Deposit</a>
+        <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success">Add Beneficiary</a>
+        <a href="{{ url_for('send_money') }}" class="btn btn-primary">Send Money</a>
+    </div>
+    <hr>
+
+    <!-- Send Money Section -->
+    <h3>Send Money</h3>
+    <form action="{{ url_for('send_money') }}" method="post" id="sendMoneyForm">
+        <div class="mb-3">
+            <label for="amount" class="form-label">Amount (ZAR)</label>
+            <input type="number" class="form-control" name="amount" id="amount" required>
+        </div>
+
+        <div class="mb-3">
+            <label for="currency" class="form-label">Currency</label>
+            <select class="form-control" name="currency" id="currency">
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="CNY">CNY</option>
+                <option value="BWP">BWP</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label for="payment_method" class="form-label">Payment Method</label>
+            <select class="form-control" name="payment_method" id="payment_method" required>
+                <option value="bank">Bank Transfer</option>
+                <option value="binance">Binance B2P</option>
+                <option value="momo">MTN MoMo</option>
+                <option value="airtel">Airtel Money</option>
+                <option value="mpesa">M-Pesa</option>
+            </select>
+        </div>
+        
+        <div class="mb-3">
+            <label for="beneficiary_account" class="form-label">Beneficiary Account</label>
+            <input type="text" class="form-control" name="beneficiary_account" required>
+        </div>
+
+        <!-- Live Exchange Rate Display -->
+        <p><strong>Exchange Rate:</strong> <span id="exchangeRate2">Fetching...</span></p>
+        <p><strong>Converted Amount:</strong> <span id="convertedAmount">0.00</span></p>
+
+        <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+
+    <script>
+    document.getElementById("amount").addEventListener("input", updateExchangeRate);
+    document.getElementById("currencySelector").addEventListener("change", updateExchangeRate);
+    document.getElementById("currency").addEventListener("change", updateExchangeRate);
+
+    function updateExchangeRate() {
+        let amount = document.getElementById("amount").value;
+        let selectedCurrency = document.getElementById("currencySelector").value;
+
+        if (amount) {
+            fetch(`/get_exchange_rate?amount=${amount}&method=${selectedCurrency}`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById("exchangeRate").innerText = data.exchange_rate;
+                    document.getElementById("exchangeRate2").innerText = data.exchange_rate;
+                    document.getElementById("convertedBalance").innerText = data.converted_amount;
+                    document.getElementById("convertedAmount").innerText = data.converted_amount;
+                    document.getElementById("currencyLabel").innerText = selectedCurrency;
+                    document.getElementById("currencyLabel2").innerText = selectedCurrency;
+                })
+                .catch(error => console.error("Error fetching exchange rate:", error));
+        }
+    }
+    </script>
+
+    <hr>
+
+    <!-- Transaction History Section -->
+    <h3>Transaction History</h3>
+    <table class="table table-bordered">
+        <thead class="table-light">
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Amount (ZAR)</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for txn in transactions %}
+            <tr>
+                <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>
+                    {% if txn.status == "Deposited" %}
+                        Deposit
+                    {% else %}
+                        Payment to Beneficiary
+                    {% endif %}
+                </td>
+                <td>{{ "%.2f"|format(txn.amount) }}</td>
+                <td>
+                    {% if txn.status == "Pending" %}
+                        <span class="badge bg-warning">Pending</span>
+                    {% elif txn.status == "Success" %}
+                        <span class="badge bg-success">Success</span>
+                    {% else %}
+                        <span class="badge bg-danger">Failed</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% endblock %}

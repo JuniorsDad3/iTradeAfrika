@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Edit Profile</h2>
+<form method="POST">
+    {{ form.hidden_tag() }}  <!-- ✅ Add this line for CSRF protection -->
+    
+    <label>Full Name:</label>
+    <input type="text" name="full_name" value="{{ user.full_name }}" required><br>
+
+    <label>ID Number:</label>
+    <input type="text" name="id_number" value="{{ user.id_number }}"><br>
+
+    <label>Passport Number (if applicable):</label>
+    <input type="text" name="passport_number" value="{{ user.passport_number }}"><br>
+
+    <label>Address:</label>
+    <input type="text" name="address" value="{{ user.address }}" required><br>
+
+    <label>Country Code:</label>
+    <input type="text" name="country_code" value="{{ user.country_code }}" required><br>
+
+    <label>Phone Number:</label>
+    <input type="text" name="phone_number" value="{{ user.phone_number }}" required><br>
+
+    <h3>Bank Details</h3>
+    <label>Bank Name:</label>
+    <input type="text" name="bank_name" value="{{ user.bank_name }}" required><br>
+
+    <label>Bank Account Number:</label>
+    <input type="text" name="bank_account_number" value="{{ user.bank_account_number }}" required><br>
+
+    <button type="submit">Update Profile</button>
+</form>
+
+{% endblock %}
