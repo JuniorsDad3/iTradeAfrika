@@ -4,58 +4,17 @@
 
 <h2>Add Beneficiary</h2>
 
-<!-- Display Success & Error Messages -->
-{% with messages = get_flashed_messages(with_categories=True) %}
-  {% if messages %}
-    {% for category, message in messages %}
-      <div class="alert alert-{{ category }}">{{ message }}</div>
-    {% endfor %}
-  {% endif %}
-{% endwith %}
-
 <form method="post" action="{{ url_for('add_beneficiary') }}">
-    {{ form.hidden_tag() }}  <!-- ✅ CSRF Protection -->
+    {{ form.hidden_tag() }}  
 
     <div class="form-group">
-    <select name="beneficiary_type" id="beneficiary_type" required onchange="toggleBeneficiaryFields()">
-        <option value="individual">Individual</option>
-        <option value="business">Business</option>
-    </select>
-    </div>
-    
-    <div class="form-group">
-        <label>Beneficiary Full Name</label>
-        <input type="text" name="name" class="form-control" required>
+        <label>Full Name</label>
+        <input type="text" name="full_name" class="form-control" required>
     </div>
 
     <div class="form-group">
         <label>ID Number</label>
-        <input type="text" name="id_number" class="form-control" placeholder="ID / Passport Number" required>
-    </div>
-
-    <div class="form-group">
-        <label>Bank</label>
-        <input type="text" name="bank" class="form-control" required>
-    </div>
-
-    <div class="form-group">
-    <label for="swift_code">SWIFT Code</label>
-    <input type="text" name="swift_code" id="swift_code" required>
-    </div>
-
-    <div class="form-group">
-        <label>Bank Account</label>
-        <input type="text" name="bank_account" class="form-control" required>
-    </div>
-
-    <div class="form-group">
-        <label>Address</label>
-        <input type="text" name="address" class="form-control" required>
-    </div>
-
-    <div class="form-group">
-        <label>Phone</label>
-        <input type="text" name="phone" class="form-control" required>
+        <input type="text" name="id_number" class="form-control" required>
     </div>
 
     <div class="form-group">
@@ -64,49 +23,32 @@
     </div>
 
     <div class="form-group">
-    <label for="currency">Currency</label>
-    <select name="currency" id="currency" required>
-        <option value="USD">US Dollar (USD)</option>
-        <option value="EUR">Euro (EUR)</option>
-        <option value="GBP">British Pound (GBP)</option>
-        <option value="CNY">Chinese Yuan (CNY)</option>
-        <option value="BWP">Botswana Pula (BWP)</option>
-        <option value="ZAR">South African Rand (ZAR)</option>
-        <option value="JPY">Japanese Yen (JPY)</option>
-        <option value="KRW">South Korean Won (KRW)</option>
-    </select>
+        <label>Bank Name</label>
+        <input type="text" name="bank_name" class="form-control" required>
     </div>
 
-    <button type="submit" class="btn btn-success mt-3">Add Beneficiary</button>
+    <div class="form-group">
+        <label>Account Number</label>
+        <input type="text" name="account_number" class="form-control" required>
+    </div>
+
+    <div class="form-group">
+        <label>Phone Number</label>
+        <input type="text" name="phone_number" class="form-control" required>
+    </div>
+
+    <div class="form-group">
+        <label>Currency</label>
+        <select name="currency" class="form-control">
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
+            <option value="CNY">CNY</option>
+            <option value="BWP">BWP</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-success">Add Beneficiary</button>
 </form>
-
-<h3 class="mt-4">Added Beneficiaries</h3>
-{% if beneficiaries %}
-    <ul class="list-group">
-        {% for b in beneficiaries %}
-            <li class="list-group-item">
-                <strong>{{ b.name }}</strong> - {{ b.bank_account }} ({{ b.bank }})
-            </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No beneficiaries added yet.</p>
-{% endif %}
-
-
-<script>
-function toggleBeneficiaryFields() {
-    let beneficiaryType = document.getElementById("beneficiary_type").value;
-    let businessFields = document.getElementById("business_beneficiary_fields");
-    let individualFields = document.getElementById("individual_beneficiary_fields");
-
-    if (beneficiaryType === "business") {
-        businessFields.style.display = "block";
-        individualFields.style.display = "none";
-    } else {
-        businessFields.style.display = "none";
-        individualFields.style.display = "block";
-    }
-}
 
 {% endblock %}
