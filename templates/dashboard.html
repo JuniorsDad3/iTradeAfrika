@@ -19,9 +19,9 @@
         <button type="submit" class="btn btn-success mt-2">Confirm Deposit</button>
     </form>
 
-    <h3>Transaction Preview</h3>
-    <p><strong>Crypto Purchased:</strong> <span id="cryptoAmount">0.00</span> XLM/USDT</p>
-    <p><strong>Final Payout (After Fees):</strong> <span id="finalPayout">0.00</span> <span id="currencyLabel2"></span></p>
+    <h3>How it</h3>
+    <p><light>iTradeAfrika® enables instant cross-border money transfers using crypto for the best exchange rates. Deposit ZAR into our Capitec Business Account (1052923917, Branch Code: 450105, SWIFT: CABLZAJJ) using your account number as the reference.</p>
+    <p><light>We convert it to the lowest rate, exchange it into USD, BWP, EUR, or CNY with a 10% fee and instantly send it to the beneficiary’s bank account within hours. For support, call or WhatsApp 073 916 1782. 🚀</p>
 
     <hr>
     <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success">Add Beneficiary</a>
@@ -65,6 +65,25 @@
                 <td>{{ txn.transaction_type }}</td>
                 <td>{{ "%.2f"|format(txn.amount) }}</td>
                 <td>{{ txn.status }}</td>
+                <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>
+                    {% if txn.transaction_type == "Deposit" %}
+                        Deposit
+                    {% else %}
+                        Payment to {{ txn.beneficiary.name }}
+                    {% endif %}
+                </td>
+                <td>{{ "%.2f"|format(txn.amount) }}</td>
+                <td>{{ txn.currency }}</td>
+                <td>
+                    {% if txn.status == "Pending" %}
+                        <span class="badge bg-warning">Pending</span>
+                    {% elif txn.status == "Success" %}
+                        <span class="badge bg-success">Success</span>
+                    {% else %}
+                        <span class="badge bg-danger">Failed</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

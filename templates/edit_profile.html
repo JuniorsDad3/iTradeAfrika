@@ -4,6 +4,9 @@
 <h2>Edit Profile</h2>
 <form method="POST">
     {{ form.hidden_tag() }}  <!-- ✅ Add this line for CSRF protection -->
+
+    <label>Email:</label>
+    <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
     
     <label>Full Name:</label>
     <input type="text" name="full_name" value="{{ user.full_name }}" required><br>

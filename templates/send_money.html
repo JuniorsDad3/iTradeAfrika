@@ -25,7 +25,11 @@
 
     <div class="form-group">
         <label>Beneficiary Bank Account</label>
-        <input type="text" name="bank_account" class="form-control" required>
+    <select name="beneficiary_id" class="form-control" required>
+        {% for beneficiary in beneficiaries %}
+            <option value="{{ beneficiary.id }}">{{ beneficiary.name }} - {{ beneficiary.bank_account }}</option>
+        {% endfor %}
+    </select>
     </div>
 
     <p><strong>Estimated Payout:</strong> <span id="convertedAmount">0.00</span> <span id="currency_label"></span></p>
@@ -34,23 +38,44 @@
 </form>
 
 <script>
-    document.getElementById("amount").addEventListener("input", updateConversion);
-    document.getElementById("currency").addEventListener("change", updateConversion);
-
-    function updateConversion() {
-        let amountZAR = parseFloat(document.getElementById("amount").value) || 0;
-        let selectedCurrency = document.getElementById("currency").value;
-
-        if (amountZAR > 0) {
-            fetch(`/get_exchange_rate?amount=${amountZAR}&currency=${selectedCurrency}`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById("convertedAmount").textContent = data.converted_amount;
-                    document.getElementById("currency_label").textContent = selectedCurrency;
-                })
-                .catch(error => console.error("Error fetching exchange rate:", error));
+document.getElementById("sendMoneyForm").addEventListener("submit", function(event) {
+    alert("✅ Your transaction has been sent successfully!");
+    event.preventDefault();
+    
+    let formData = new FormData(this);
+    
+    fetch("/send_money", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === "success") {
+            alert(`Transaction Successful! Sent ${data.amount_sent} ${data.currency}`);
+            window.location.href = "/dashboard";
+        } else {
+            alert(`Error: ${data.error}`);
         }
+    })
+    .catch(error => console.error("Transaction error:", error));
+});
+document.getElementById("amount").addEventListener("input", updateExchangeRate);
+document.getElementById("currency").addEventListener("change", updateExchangeRate);
+
+function updateExchangeRate() {
+    let amount = document.getElementById("amount").value;
+    let currency = document.getElementById("currency").value;
+
+    if (amount) {
+        fetch(`/get_exchange_rate?amount=${amount}&currency=${currency}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById("exchangeRate").innerText = data.exchange_rate;
+                document.getElementById("convertedAmount").innerText = data.converted_amount;
+            })
+            .catch(error => console.error("Error fetching exchange rate:", error));
     }
+}
 </script>
 
 {% endblock %}
