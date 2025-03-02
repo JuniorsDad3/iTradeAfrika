@@ -1,4 +1,4 @@
-# Use an official Python image as a base (adjust version as needed)
+# Use an official Python image as a base
 FROM python:3.11-slim
 
 # Set environment variables for Python
@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg2 \
     unixodbc \
-    unixodbc-dev
+    unixodbc-dev \
+    build-essential  # Added for some Python dependencies
 
 # Add the Microsoft repository and install ODBC Driver 18 for SQL Server
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
@@ -25,15 +26,18 @@ ENV LD_LIBRARY_PATH=/opt/microsoft/msodbcsql18/lib64:$LD_LIBRARY_PATH
 # Set the working directory
 WORKDIR /app
 
-# Copy your requirements file and install Python dependencies
+# Copy requirements and install dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy the rest of your application code
+# Copy the rest of the application code
 COPY . /app/
 
-# Expose the port your app runs on (adjust if necessary)
-EXPOSE 8000 
+# Expose the correct port
+EXPOSE 8000
 
-# Command to run your application (adjust if your entry point is different)
-CMD exec gunicorn -b 0.0.0.0:${PORT} app:app
+# Set a default port in case $PORT is not provided by the environment
+ENV PORT=8000
+
+# Command to run your application using Gunicorn
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT} app:app"]
