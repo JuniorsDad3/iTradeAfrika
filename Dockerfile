@@ -33,7 +33,7 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . /app/
 
 # Expose the port your app runs on (adjust if necessary)
-EXPOSE 10000
+EXPOSE 8000 
 
 # Command to run your application (adjust if your entry point is different)
-CMD ["gunicorn", "app:app", "--bind", "0.0.0.0:10000"]
+CMD ["gunicorn", "-b", "0.0.0.0:$PORT", "app:app"]
