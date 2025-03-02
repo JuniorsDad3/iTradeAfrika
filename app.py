@@ -495,7 +495,7 @@ if __name__ == "__main__":
 with app.app_context():
     db.create_all()
     print("Database tables created successfully!")
-port = os.getenv("PORT")
+port = int(os.getenv("PORT", 8000))
 if port is None or not port.isdigit():
     port = 8000  # Default to 8000 if PORT is missing or invalid
 else:

@@ -36,4 +36,4 @@ COPY . /app/
 EXPOSE 8000 
 
 # Command to run your application (adjust if your entry point is different)
-CMD exec gunicorn -b 0.0.0.0:${PORT:-8000} app:app
+CMD exec gunicorn -b 0.0.0.0:${PORT} app:app
