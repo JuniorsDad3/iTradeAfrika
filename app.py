@@ -492,13 +492,14 @@ def server_error(e):
 if __name__ == "__main__":
     import threading
     threading.Thread(target=background_deposit_checker, daemon=True).start()
-with app.app_context():
-    db.create_all()
-    print("Database tables created successfully!")
-port = int(os.getenv("PORT", 8000))
-if port is None or not port.isdigit():
-    port = 8000  # Default to 8000 if PORT is missing or invalid
-else:
-    port = int(port)
 
-app.run(host="0.0.0.0", port=port, debug=False)
+    with app.app_context():
+        db.create_all()
+        print("Database tables created successfully!")
+
+    # Ensure port is correctly handled
+    port = os.getenv("PORT", "8000")  # Get PORT as a string, default to "8000"
+    if not port.isdigit():  
+        port = "8000"  # Default to "8000" if invalid
+
+    app.run(host="0.0.0.0", port=int(port), debug=False)
