@@ -113,3 +113,5 @@ Werkzeug==3.0.4
 WTForms==3.2.1
 xdrlib3==0.1.1
 yarl==1.18.3
+luno-python
+
