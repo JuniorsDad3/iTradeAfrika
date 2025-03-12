@@ -8,8 +8,12 @@
     <p>Your unique account number: <strong>{{ user.account_number }}</strong></p>
     <p>Your current balance: <strong>ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
 
+    <!-- Live Exchange Rates -->
     <h3>Live Exchange Rate</h3>
-    <p><strong>1 ZAR = </strong><span id="exchangeRate">Fetching...</span> <strong><span id="currencyLabel">USD</span></strong></p>
+    <p><strong>1 ZAR = </strong>
+        <span id="exchange_rate" class="flashing">Fetching...</span>
+        <strong id="selected_currency">USD</strong>
+    </p>
 
     <!-- Deposit Funds -->
     <h3>Deposit ZAR</h3>
@@ -19,35 +23,22 @@
         <button type="submit" class="btn btn-success mt-2">Confirm Deposit</button>
     </form>
 
-    <h3>How it</h3>
-    <p><light>iTradeAfrika® enables instant cross-border money transfers using crypto for the best exchange rates. Deposit ZAR into our Capitec Business Account (1052923917, Branch Code: 450105, SWIFT: CABLZAJJ) using your account number as the reference.</p>
-    <p><light>We convert it to the lowest rate, exchange it into USD, BWP, EUR, or CNY with a 10% fee and instantly send it to the beneficiary’s bank account within hours. For support, call or WhatsApp 073 916 1782. 🚀</p>
+    <!-- How it Works Section -->
+    <h3>How it Works</h3>
+    <p>
+        <strong>iTradeAfrika®</strong> enables instant cross-border money transfers using crypto for the best exchange rates.
+        Deposit ZAR into our Capitec Business Account <strong>(1052923917, Branch Code: 450105, SWIFT: CABLZAJJ)</strong> using your account number as the reference.
+    </p>
+    <p>
+        We convert it at the lowest rate, exchange it into USD, BWP, EUR, GBP, or CNY with a **10% fee**, and instantly send it to the beneficiary’s bank account within hours.  
+        For support, call or WhatsApp <strong>073 916 1782</strong>. 🚀
+    </p>
 
     <hr>
+
     <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success">Add Beneficiary</a>
     <a href="{{ url_for('send_money') }}" class="btn btn-primary">Send Money</a>
 
-    <script>
-        document.getElementById("depositAmount").addEventListener("input", updateTransactionPreview);
-
-        function updateTransactionPreview() {
-            let amountZAR = parseFloat(document.getElementById("depositAmount").value) || 0;
-            if (amountZAR > 0) {
-                fetch(`/get_conversion_preview?amount=${amountZAR}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById("cryptoAmount").textContent = data.crypto_amount;
-                        document.getElementById("finalPayout").textContent = data.final_amount;
-                        document.getElementById("currencyLabel2").textContent = data.currency;
-                    })
-                    .catch(error => console.error("Error fetching transaction preview:", error));
-            }
-        }
-    </script>
-
-    <hr>
-
-    <!-- Transaction History Section -->
     <h3>Transaction History</h3>
     <table class="table table-bordered">
         <thead>
@@ -55,16 +46,14 @@
                 <th>Date</th>
                 <th>Type</th>
                 <th>Amount (ZAR)</th>
+                <th>Final Payout</th>
+                <th>Currency</th>
                 <th>Status</th>
             </tr>
         </thead>
         <tbody>
             {% for txn in transactions %}
             <tr>
-                <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>{{ txn.transaction_type }}</td>
-                <td>{{ "%.2f"|format(txn.amount) }}</td>
-                <td>{{ txn.status }}</td>
                 <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                 <td>
                     {% if txn.transaction_type == "Deposit" %}
@@ -73,7 +62,8 @@
                         Payment to {{ txn.beneficiary.name }}
                     {% endif %}
                 </td>
-                <td>{{ "%.2f"|format(txn.amount) }}</td>
+                <td>ZAR {{ "%.2f"|format(txn.amount) }}</td>
+                <td>{{ "%.2f"|format(txn.final_amount or 0) }} {{ txn.currency }}</td>
                 <td>{{ txn.currency }}</td>
                 <td>
                     {% if txn.status == "Pending" %}
@@ -89,5 +79,47 @@
         </tbody>
     </table>
 </div>
+
+<!-- Live Exchange Rate & Transaction Preview -->
+<script>
+function updateExchangeRate() {
+    fetch('/get_live_rates')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                console.error("API Error:", data.error);
+                return;
+            }
+            document.getElementById("exchange_rate").innerText = data.exchange_rate;
+            document.getElementById("selected_currency").innerText = data.selected_currency;
+            flashRates(); // Flash effect
+        })
+        .catch(error => console.error("Error fetching live rates:", error));
+}
+
+// Flashing effect for exchange rates
+function flashRates() {
+    let rateElement = document.getElementById("exchange_rate");
+    rateElement.classList.add("flash");
+    setTimeout(() => {
+        rateElement.classList.remove("flash");
+    }, 500);
+}
+
+// Refresh rates every 10 seconds
+setInterval(updateExchangeRate, 10000);
+</script>
+
+<style>
+/* Flashing effect */
+@keyframes flash {
+    0% { background-color: yellow; }
+    50% { background-color: transparent; }
+    100% { background-color: yellow; }
+}
+.flash {
+    animation: flash 0.5s ease-in-out;
+}
+</style>
 
 {% endblock %}
