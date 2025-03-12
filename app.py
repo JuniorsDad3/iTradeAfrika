@@ -22,7 +22,7 @@ import uuid
 import imaplib
 import email
 import re
-import luno
+import luno_python
 from requests.auth import HTTPBasicAuth
 
 # Load environment variables
