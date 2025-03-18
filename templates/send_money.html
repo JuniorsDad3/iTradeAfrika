@@ -4,29 +4,23 @@
 
 <div class="container mt-4">
     <h2 class="text-center">Send Money</h2>
-    
-    <p><strong>Your Balance: </strong> ZAR <span id="zar_balance">{{ "%.2f"|format(user.balance) }}</span></p>
-    
-    <h3>Live Exchange Rate</h3>
-    <p><strong>1 ZAR = </strong> <span id="exchange_rate" class="flashing">Fetching...</span> <strong><span id="payout_currency">USD</span></strong></p>
-    
-    <form method="post" action="{{ url_for('send_money') }}" id="send_money_form">
+    <p><strong>Your Balance: ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
+
+    <form method="post" action="{{ url_for('send_money') }}" id="sendMoneyForm">
         {{ form.hidden_tag() }}
 
-        <!-- Amount Input -->
-        <div class="form-group">
-            <label for="amountInput">Enter Amount (ZAR):</label>
-            <input type="number" name="amount" id="amountInput" class="form-control" placeholder="Enter amount in ZAR" required>
+        <div class="mb-3">
+            <label for="amount" class="form-label">Enter Amount (ZAR)</label>
+            <input type="number" name="amount" id="amount" class="form-control" placeholder="Enter ZAR Amount" required>
         </div>
 
-        <!-- Beneficiary Dropdown -->
-        <div class="form-group">
-            <label for="beneficiarySelect">Select Beneficiary:</label>
-            <select name="beneficiary_id" id="beneficiarySelect" class="form-control" required>
-                <option value="">-- Select Beneficiary --</option>
-                {% for beneficiary in beneficiaries %}
-                    <option value="{{ beneficiary.id }}" data-currency="{{ beneficiary.currency }}">
-                        {{ beneficiary.name }} - {{ beneficiary.bank_account }} ({{ beneficiary.currency }})
+        <div class="mb-3">
+            <label for="beneficiary_id" class="form-label">Select Beneficiary</label>
+            <select name="beneficiary_id" id="beneficiary_id" class="form-control" required>
+                <option value="">-- Choose a Beneficiary --</option>
+                {% for b in beneficiaries %}
+                    <option value="{{ b.id }}" data-currency="{{ b.currency }}">
+                        {{ b.name }} - {{ b.bank_account }} ({{ b.currency }})
                     </option>
                 {% endfor %}
             </select>
@@ -34,76 +28,64 @@
 
         <!-- Transaction Preview -->
         <h3>Transaction Preview</h3>
-        <p><strong>Amount Entered: </strong> ZAR <span id="entered_amount">0.00</span></p>
-        <p><strong>Amount After Fees (10% Deducted): </strong> ZAR <span id="amount_after_fees">0.00</span></p>
-        <p><strong>Final Payout: </strong> <span id="final_payout">0.00</span> <span id="final_currency">USD</span></p>
+        <p><strong>Amount Entered:</strong> ZAR <span id="amountEntered">0</span></p>
+        <p><strong>Amount After Fees (10% Deducted):</strong> ZAR <span id="amountAfterFees">0</span></p>
+        <p><strong>Final Payout:</strong> <span id="finalPayout">0</span> <span id="payoutCurrency">---</span></p>
 
-        <!-- Submit Button -->
-        <button type="submit" class="btn btn-primary mt-3">Confirm & Send Money</button>
+        <button type="submit" id="sendMoneyButton" class="btn btn-primary">Send Money</button>
     </form>
+
+    <div id="confirmationMessage" class="alert alert-success mt-3" style="display: none;">
+        ✅ Transaction successful! Money has been sent to <span id="beneficiaryName"></span>.
+    </div>
 </div>
 
-<!-- JavaScript for Dynamic Updates -->
+<!-- JavaScript -->
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    const amountInput = document.getElementById("amountInput");
-    const beneficiarySelect = document.getElementById("beneficiarySelect");
-    const exchangeRateElement = document.getElementById("exchange_rate");
-    const enteredAmount = document.getElementById("entered_amount");
-    const amountAfterFees = document.getElementById("amount_after_fees");
-    const finalPayout = document.getElementById("final_payout");
-    const finalCurrency = document.getElementById("final_currency");
+document.getElementById("sendMoneyForm").addEventListener("submit", function() {
+    document.getElementById("sendMoneyButton").disabled = true;
+    document.getElementById("sendMoneyButton").innerText = "Processing...";
+document.getElementById("amount").addEventListener("input", updateTransactionPreview);
+document.getElementById("beneficiary_id").addEventListener("change", updateTransactionPreview);
 
-    function updateTransactionPreview() {
-        let amountZAR = parseFloat(amountInput.value) || 0;
-        let selectedBeneficiary = beneficiarySelect.options[beneficiarySelect.selectedIndex];
-        let beneficiaryCurrency = selectedBeneficiary.getAttribute("data-currency") || "USD";
+function updateTransactionPreview() {
+    let amountZAR = parseFloat(document.getElementById("amount").value) || 0;
+    let beneficiarySelect = document.getElementById("beneficiary_id");
+    let selectedOption = beneficiarySelect.options[beneficiarySelect.selectedIndex];
+    let beneficiaryCurrency = selectedOption.getAttribute("data-currency");
 
-        if (amountZAR > 0) {
-            fetch(`/get_conversion_preview?amount=${amountZAR}&currency=${beneficiaryCurrency}`)
-                .then(response => response.json())
-                .then(data => {
-                    enteredAmount.textContent = data.amount_entered.toFixed(2);
-                    amountAfterFees.textContent = data.amount_after_fees.toFixed(2);
-                    finalPayout.textContent = data.final_payout.toFixed(2);
-                    finalCurrency.textContent = data.payout_currency;
-                })
-                .catch(error => console.error("Error fetching conversion preview:", error));
-        }
-    }
-
-    function updateExchangeRate() {
-        fetch('/get_live_rates')
+    if (amountZAR > 0 && beneficiaryCurrency) {
+        fetch(`/get_conversion_preview?amount=${amountZAR}&currency=${beneficiaryCurrency}`)
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    console.error("API Error:", data.error);
-                    return;
-                }
-                exchangeRateElement.innerText = data.exchange_rate;
-                exchangeRateElement.classList.add("flash");
-                setTimeout(() => exchangeRateElement.classList.remove("flash"), 500);
+                document.getElementById("amountEntered").textContent = data.amount_entered;
+                document.getElementById("amountAfterFees").textContent = data.amount_after_fees;
+                document.getElementById("finalPayout").textContent = data.final_payout;
+                document.getElementById("payoutCurrency").textContent = data.payout_currency;
             })
-            .catch(error => console.error("Error fetching live rates:", error));
+            .catch(error => console.error("Error fetching transaction preview:", error));
     }
+}
 
-    amountInput.addEventListener("input", updateTransactionPreview);
-    beneficiarySelect.addEventListener("change", updateTransactionPreview);
-    
-    setInterval(updateExchangeRate, 10000);
+// Flash Confirmation Message after submission
+document.querySelector("form").addEventListener("submit", function(event) {
+    event.preventDefault(); // Prevent default form submission
+    fetch("{{ url_for('send_money') }}", {
+        method: "POST",
+        body: new FormData(this)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById("confirmationMessage").style.display = "block";
+            document.getElementById("beneficiaryName").textContent = data.beneficiary;
+            setTimeout(() => window.location.href = "{{ url_for('dashboard') }}", 2000);
+        } else {
+            alert("Transaction failed: " + data.message);
+        }
+    })
+    .catch(error => console.error("Error processing transaction:", error));
 });
 </script>
-
-<!-- Flashing Effect -->
-<style>
-@keyframes flash {
-    0% { background-color: yellow; }
-    50% { background-color: transparent; }
-    100% { background-color: yellow; }
-}
-.flash {
-    animation: flash 0.5s ease-in-out;
-}
-</style>
 
 {% endblock %}

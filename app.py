@@ -97,6 +97,7 @@ class Transaction(db.Model):
     status = db.Column(db.String(20), default="Pending")
     timestamp = db.Column(db.DateTime, server_default=db.func.now())
     converted_amount = db.Column(db.Float, nullable=True) 
+    beneficiary = db.relationship("Beneficiary", backref="transactions", lazy=True)
 
 # ========= FORMS =========
 class RegistrationForm(FlaskForm):
@@ -115,8 +116,6 @@ class DepositForm(FlaskForm):
     submit = SubmitField("Deposit")
 
 class SendMoneyForm(FlaskForm):
-    name = StringField('Your Name', validators=[DataRequired()])
-    account_number = StringField('Account Number', validators=[DataRequired()])
     amount = DecimalField('Amount in ZAR', validators=[DataRequired()])
     beneficiary_id = SelectField('Select Beneficiary', coerce=int)
     submit = SubmitField('Send Money')
@@ -401,7 +400,7 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
 def send_money():
     if 'user_ID' not in session:
         flash("Please log in first.", "danger")
-        return redirect(url_for('login'))  
+        return redirect(url_for('login'))
 
     user = User.query.get(session['user_ID'])
     beneficiaries = Beneficiary.query.filter_by(user_id=user.ID).all()
@@ -419,41 +418,34 @@ def send_money():
                 flash("Invalid beneficiary selected!", "danger")
                 return redirect(url_for('send_money'))
 
+            currency = beneficiary.currency  
+
+            print(f"🔹 Sending {amount_zar} ZAR to {beneficiary.name}")
+
             if user.balance < amount_zar:
-                flash("❌ Insufficient balance!", "danger")
+                flash("Insufficient balance!", "danger")
                 return redirect(url_for('send_money'))
 
-            currency = beneficiary.currency  # Get beneficiary's currency
+            # Convert ZAR to Crypto
+            crypto_amount = convert_zar_to_crypto(amount_zar)
 
-            # Deduct 10% fee from the amount
-            amount_after_fee = round(amount_zar * 0.90, 2)
+            # Convert Crypto to Target Currency
+            final_amount = convert_crypto_to_fiat(crypto_amount, currency)
 
-            # Convert ZAR directly to the target currency
-            live_rates = get_live_exchange_rates()
-            payout_rate = live_rates.get(currency, 0)
+            print(f"✅ Crypto Amount: {crypto_amount} | Final Amount to Beneficiary: {final_amount}")
 
-            if payout_rate == 0:
-                flash("⚠ Exchange rate unavailable. Please try again later.", "danger")
-                return redirect(url_for('send_money'))
-
-            final_payout = round(amount_after_fee * payout_rate, 2)
-
-            print(f"✅ Sending {final_payout} {currency} to {beneficiary.name}")
-
-            # Simulate Payout (Replace this with actual API call)
-            payout_success = send_payout_to_customer(beneficiary.bank_account, final_payout, currency)
+            # Simulate Payout
+            payout_success = send_payout_to_customer(beneficiary.bank_account, final_amount, currency)
 
             if payout_success:
-                # Deduct balance from user
                 user.balance -= amount_zar
 
-                # Save Transaction in Database
+                # Save transaction
                 transaction = Transaction(
                     user_id=user.ID,
                     beneficiary_id=beneficiary_id,
                     amount=amount_zar,
-                    amount_after_fees=amount_after_fee,  # ✅ Store amount after fees
-                    final_amount=final_payout,  # ✅ Store final payout amount
+                    final_amount=final_amount,  
                     currency=currency,
                     transaction_type="Transfer",
                     status="Success"
@@ -462,15 +454,15 @@ def send_money():
                 db.session.commit()
 
                 print("✅ Transaction added to database!")
-                flash(f"Successfully sent {final_payout} {currency} to {beneficiary.name}!", "success")
-                return redirect(url_for('dashboard'))  # Redirect to dashboard
+                flash(f"Successfully sent {final_amount} {currency} to {beneficiary.name}!", "success")
 
+                return redirect(url_for('dashboard'))  # ✅ Redirect to dashboard on success
             else:
-                flash("❌ Transaction failed. Please try again.", "danger")
+                flash("Transaction failed. Please try again.", "danger")
 
         except Exception as e:
             print(f"❌ Error processing transaction: {e}")
-            flash("⚠ An error occurred. Please try again later.", "danger")
+            flash("An error occurred. Please try again later.", "danger")
 
     return render_template("send_money.html", form=form, user=user, beneficiaries=beneficiaries)
 
@@ -479,24 +471,20 @@ def send_money():
 def dashboard():
     if 'user_ID' not in session:
         return redirect(url_for('login'))
-
     user = User.query.get(session['user_ID'])
     transactions = Transaction.query.filter_by(user_id=user.ID).order_by(Transaction.timestamp.desc()).all()
     beneficiaries = Beneficiary.query.filter_by(user_id=user.ID).all()
-    # Fetch the latest exchange rate
-    latest_rate = get_luno_crypto_rate()  # Make sure this returns a valid number
-
-    # Calculate user’s balance in USDT after fees
-    zar_balance = user.balance  # Get user's ZAR balance
-    balance_after_fee = zar_balance * 0.90  # Deduct 10% fee
-    converted_usdt = round(balance_after_fee / latest_rate, 2) if latest_rate else 0
-
-    print(f"🔹 Transactions for {user.Username}: {transactions}")
     
-    # ✅ Add an empty form (for CSRF protection if needed)
-    form = SendMoneyForm()  
+    # For live rates (example: using Luno rate)
+    latest_rate = get_luno_crypto_rate()  # This should return a valid number
+    zar_balance = user.balance
+    balance_after_fee = zar_balance * 0.90
+    converted_usdt = round(balance_after_fee / latest_rate, 2) if latest_rate else 0
+    
+    return render_template("dashboard.html", user=user, transactions=transactions, 
+                           exchange_rate=latest_rate, converted_usdt=converted_usdt, 
+                           fees=zar_balance - balance_after_fee, beneficiaries=beneficiaries)
 
-    return render_template("dashboard.html", user=user, transactions=transactions, exchange_rate=latest_rate, converted_usdt=converted_usdt, fees=zar_balance - balance_after_fee, beneficiaries=beneficiaries, form=form)
 
 @app.route('/get_conversion_preview')
 def get_conversion_preview():

@@ -4,13 +4,27 @@
 
 <div class="container mt-4">
     <h2 class="text-center">Dashboard</h2>
+    
+    <!-- Display Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <p><strong>Welcome, {{ user.username }}!</strong></p>
     <p>Your unique account number: <strong>{{ user.account_number }}</strong></p>
     <p>Your current balance: <strong>ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
 
     <!-- Live Exchange Rates -->
     <h3>Live Exchange Rate</h3>
-    <p><strong>1 ZAR = </strong>
+    <p>
+        <strong>1 ZAR = </strong>
         <span id="exchange_rate" class="flashing">Fetching...</span>
         <strong id="selected_currency">USD</strong>
     </p>
@@ -18,27 +32,27 @@
     <!-- Deposit Funds -->
     <h3>Deposit ZAR</h3>
     <form method="post" action="{{ url_for('deposit') }}">
-        {{ form.hidden_tag() }}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="number" name="amount" id="depositAmount" class="form-control" placeholder="Enter ZAR Amount" required>
         <button type="submit" class="btn btn-success mt-2">Confirm Deposit</button>
     </form>
 
-    <!-- How it Works Section -->
+    <!-- How It Works Section -->
     <h3>How it Works</h3>
     <p>
         <strong>iTradeAfrika®</strong> enables instant cross-border money transfers using crypto for the best exchange rates.
         Deposit ZAR into our Capitec Business Account <strong>(1052923917, Branch Code: 450105, SWIFT: CABLZAJJ)</strong> using your account number as the reference.
     </p>
     <p>
-        We convert it at the lowest rate, exchange it into USD, BWP, EUR, GBP, or CNY with a **10% fee**, and instantly send it to the beneficiary’s bank account within hours.  
+        We convert it at the lowest rate, exchange it into USD, BWP, EUR, GBP, or CNY with a <strong>10% fee</strong>, and instantly send it to the beneficiary’s bank account within hours.
         For support, call or WhatsApp <strong>073 916 1782</strong>. 🚀
     </p>
 
     <hr>
-
     <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success">Add Beneficiary</a>
     <a href="{{ url_for('send_money') }}" class="btn btn-primary">Send Money</a>
 
+    <!-- Transaction History -->
     <h3>Transaction History</h3>
     <table class="table table-bordered">
         <thead>
@@ -59,7 +73,7 @@
                     {% if txn.transaction_type == "Deposit" %}
                         Deposit
                     {% else %}
-                        Payment to {{ txn.beneficiary.name }}
+                        Payment to {{ txn.beneficiary.name if txn.beneficiary else "N/A" }}
                     {% endif %}
                 </td>
                 <td>ZAR {{ "%.2f"|format(txn.amount) }}</td>
@@ -80,7 +94,7 @@
     </table>
 </div>
 
-<!-- Live Exchange Rate & Transaction Preview -->
+<!-- JavaScript for Live Rates -->
 <script>
 function updateExchangeRate() {
     fetch('/get_live_rates')
@@ -92,26 +106,21 @@ function updateExchangeRate() {
             }
             document.getElementById("exchange_rate").innerText = data.exchange_rate;
             document.getElementById("selected_currency").innerText = data.selected_currency;
-            flashRates(); // Flash effect
+            flashRates();
         })
         .catch(error => console.error("Error fetching live rates:", error));
 }
 
-// Flashing effect for exchange rates
 function flashRates() {
     let rateElement = document.getElementById("exchange_rate");
     rateElement.classList.add("flash");
-    setTimeout(() => {
-        rateElement.classList.remove("flash");
-    }, 500);
+    setTimeout(() => rateElement.classList.remove("flash"), 500);
 }
 
-// Refresh rates every 10 seconds
 setInterval(updateExchangeRate, 10000);
 </script>
 
 <style>
-/* Flashing effect */
 @keyframes flash {
     0% { background-color: yellow; }
     50% { background-color: transparent; }
