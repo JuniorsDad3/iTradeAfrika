@@ -1,14 +1,14 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
 from flask_wtf.csrf import CSRFProtect
 from wtforms import StringField, PasswordField, SubmitField, DecimalField, SelectField, HiddenField
-from wtforms.validators import DataRequired, Email, Length
+from wtforms.validators import DataRequired, Email, Length, NumberRange
 from werkzeug.security import check_password_hash, generate_password_hash
 from stellar_sdk import Server, Keypair, TransactionBuilder, Network, Asset
 from twilio.rest import Client as TwilioClient
 from dotenv import load_dotenv
 from flask_login import login_required
+from pathlib import Path
 from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import random
@@ -24,16 +24,20 @@ import email
 import re
 import luno_python
 from requests.auth import HTTPBasicAuth
+import pandas as pd
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", "default-secret-key")
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-db = SQLAlchemy(app)
+
+DB_FILE = os.path.join(os.path.dirname(__file__), "data", "itrade_db.xlsx")
+DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR.mkdir(exist_ok=True)
+DB_FILE = DATA_DIR / "itrade_db.xlsx"
+
 csrf = CSRFProtect(app)
 
 # External API Configuration
@@ -47,57 +51,81 @@ LUNO_API_SECRET = os.getenv("LUNO_API_SECRET")
 COINGECKO_API_URL = os.getenv("COINGECKO_API_URL", "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=zar")
 COINGECKO_XLM_URL = "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=zar"
 COINGECKO_BTC_URL = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=zar"
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'True') == 'True'
+app.config['MAIL_USE_SSL'] = os.getenv('MAIL_USE_SSL', 'False') == 'True'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
 
 
-# ========= MODELS =========
-class User(db.Model):
-    __tablename__ = 'Users'
-    ID = db.Column(db.Integer, primary_key=True)
-    Username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=True)
-    full_name = db.Column(db.String(120), nullable=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    account_number = db.Column(db.String(20), unique=True, nullable=False)
-    balance = db.Column('Balance', db.Float, default=0.0)
+# --- Excel-backed helpers ---
+# ───────────── DATA ACCESS LAYER ─────────
+def load_df(sheet: str) -> pd.DataFrame:
+    if not DB_FILE.exists():
+        # Initialize empty sheets
+        with pd.ExcelWriter(DB_FILE) as writer:
+            for sheet_name in ("Users", "beneficiaries", "Transactions"):
+                pd.DataFrame().to_excel(writer, sheet_name=sheet_name, index=False)
+    return pd.read_excel(DB_FILE, sheet_name=sheet)
 
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
+def save_df(df: pd.DataFrame, sheet: str):
+    with pd.ExcelWriter(DB_FILE, mode="a", if_sheet_exists="replace") as writer:
+        df.to_excel(writer, sheet_name=sheet, index=False)
 
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
+def generate_unique_account_number() -> str:
+    """Return a new ITRADE-######## account number not yet in Users sheet."""
+    users = load_df("Users")
+    existing = set(users["account_number"].astype(str).tolist())
+    while True:
+        candidate = "ITRADE-" + "".join(random.choices(string.digits, k=8))
+        if candidate not in existing:
+            return candidate
 
-    @staticmethod
+def save_sheet(df, name):
+    # rewrite just this sheet, preserve others
+    # openpyxl must be installed
+    from openpyxl import load_workbook
+    if not os.path.exists(DB_FILE):
+        # create new with this sheet
+        with pd.ExcelWriter(DB_FILE, engine="openpyxl") as w:
+            df.to_excel(w, sheet_name=name, index=False)
+        return
+    book = load_workbook(DB_FILE)
+    with pd.ExcelWriter(DB_FILE, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
+        w.book = book
+        df.to_excel(w, sheet_name=name, index=False)
+        w.save()
+# --- Forms ---
+class RegistrationForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired(), Length(min=4)])
+    email = StringField("Email", validators=[DataRequired(), Email()])
+    password = PasswordField("Password", validators=[DataRequired(), Length(min=6)])
+    submit = SubmitField("Register")
+
+class LoginForm(FlaskForm):
+    username = StringField("Username", validators=[DataRequired()])
+    password = PasswordField("Password", validators=[DataRequired()])
+    submit = SubmitField("Log In")
+
+class DepositForm(FlaskForm):
+    amount = DecimalField("Amount (ZAR)", validators=[DataRequired(), NumberRange(min=1)])
+    submit = SubmitField("Deposit")
+
+class SendMoneyForm(FlaskForm):
+    amount = DecimalField("Amount (ZAR)", validators=[DataRequired(), NumberRange(min=1)])
+    beneficiary_id = SelectField("Beneficiary", coerce=str, validators=[DataRequired()])
+    submit = SubmitField("Send")
+
+class User:
     def generate_unique_account_number():
+        users = load_df("Users")
         while True:
-            account_number = "ITRADE-" + ''.join(random.choices(string.digits, k=8))
-            if not User.query.filter_by(account_number=account_number).first():
-                return account_number
-
-class Beneficiary(db.Model):
-    __tablename__ = 'beneficiaries'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('Users.ID'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    id_number = db.Column(db.String(50), nullable=True)
-    country = db.Column(db.String(50), nullable=False)
-    bank_name = db.Column(db.String(100), nullable=True)
-    bank_account = db.Column(db.String(50), nullable=True)
-    currency = db.Column(db.String(10), nullable=False)
-
-class Transaction(db.Model):
-    __tablename__ = 'Transactions'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('Users.ID'), nullable=False)
-    beneficiary_id = db.Column(db.Integer, db.ForeignKey('beneficiaries.id'), nullable=True)
-    amount = db.Column(db.Float, nullable=False)
-    crypto_amount = db.Column(db.Float, nullable=True)  # Amount converted to USDT/XLM
-    final_amount = db.Column(db.Float, nullable=True)  # Final payout in target currency
-    currency = db.Column(db.String(10), nullable=False)
-    transaction_type = db.Column(db.String(20), nullable=False)  # Deposit, Withdrawal, Transfer
-    status = db.Column(db.String(20), default="Pending")
-    timestamp = db.Column(db.DateTime, server_default=db.func.now())
-    converted_amount = db.Column(db.Float, nullable=True) 
-    beneficiary = db.relationship("Beneficiary", backref="transactions", lazy=True)
+            acct = "ITRADE-" + "".join(random.choices(string.digits, k=8))
+            if "account_number" not in users.columns:
+                return acct
+            if acct not in users["account_number"].astype(str).values:
+                return acct
 
 # ========= FORMS =========
 class RegistrationForm(FlaskForm):
@@ -256,48 +284,47 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
 def home():
     return render_template("index.html") 
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    form = RegistrationForm()  # Use the new form
+    form = RegistrationForm()
     if form.validate_on_submit():
-        username = form.username.data
-        email = form.email.data
-        password = form.password.data
-        
-        if User.query.filter_by(Username=username).first():
-            flash("Username already exists", "danger")
-            return redirect(url_for('register'))
-
-        new_user = User(
-            Username=username,
-            email=email,
-            account_number=User.generate_unique_account_number()
-        )
-        new_user.set_password(password)
-
-        db.session.add(new_user)
-        db.session.commit()
-        
-        flash("Registration successful! Please log in.", "success")
-        return redirect(url_for('login'))
-
+        users = load_sheet("Users")
+        # look for existing username
+        if form.username.data in users.get("username", []):
+            flash("Username already taken", "danger")
+        else:
+            # build new user row
+            new = {
+                "id": str(uuid.uuid4()),
+                "username": form.username.data,
+                "email": form.email.data,
+                "password_hash": generate_password_hash(form.password.data),
+                "account_number": "ITRADE-" + ''.join(random.choices(string.digits, k=8)),
+                "balance": 0.0,
+                "created_at": datetime.utcnow()
+            }
+            users = pd.concat([users, pd.DataFrame([new])], ignore_index=True)
+            save_sheet(users, "Users")
+            flash("Registration successful! Please log in.", "success")
+            return redirect(url_for("login"))
     return render_template("register.html", form=form)
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    form = LoginForm()  # Initialize the form instance
-    if request.method == 'POST' and form.validate_on_submit():
-        username = form.username.data
-        password = form.password.data
-        user = User.query.filter_by(Username=username).first()
-
-        if user and user.check_password(password):
-            session['user_ID'] = user.ID
-            flash("Login successful!", "success")
-            return redirect(url_for('dashboard'))
+    form = LoginForm()
+    if form.validate_on_submit():
+        users = load_sheet("Users")
+        row = users[users["username"] == form.username.data]
+        if row.empty:
+            flash("Invalid username or password", "danger")
         else:
-            flash("Invalid credentials. Try again.", "danger")
-
+            stored_hash = row.iloc[0]["password_hash"]
+            if check_password_hash(stored_hash, form.password.data):
+                session["user_ID"] = row.iloc[0]["id"]
+                flash("Login successful!", "success")
+                return redirect(url_for("dashboard"))
+            else:
+                flash("Invalid username or password", "danger")
     return render_template("login.html", form=form)
 
 @app.route('/logout')
@@ -308,29 +335,35 @@ def logout():
 
 @app.route('/deposit', methods=['POST'])
 def deposit():
-    if 'user_ID' not in session:
-        flash("Please log in first!", "danger")
-        return redirect(url_for('login'))
+    # load users & transactions
+    users = load_sheet("Users")
+    txns = load_sheet("Transactions")
 
-    user = User.query.get(session['user_ID'])
-    amount = float(request.form['amount'])
-
-    if amount <= 0:
-        flash("Invalid deposit amount!", "danger")
+    # find current user row
+    uid = session['user_ID']
+    idx = users.index[users['id'] == uid]
+    if idx.empty:
+        flash("User not found", "danger")
         return redirect(url_for('dashboard'))
 
-    user.balance += amount
-    db.session.commit()
+    amount = float(request.form['amount'])
+    users.at[idx[0], 'balance'] += amount
+    save_sheet(users, "Users")
 
-    transaction = Transaction(
-        user_id=user.ID,
-        amount=amount,
-        currency="ZAR",
-        transaction_type="Deposit",
-        status="Success"
-    )
-    db.session.add(transaction)
-    db.session.commit()
+    # append transaction
+    new_txn = {
+        "id": str(uuid.uuid4()),
+        "user_id": uid,
+        "beneficiary_id": "",
+        "amount": amount,
+        "final_amount": "",
+        "currency": "ZAR",
+        "transaction_type": "Deposit",
+        "status": "Success",
+        "timestamp": datetime.utcnow()
+    }
+    txns = pd.concat([txns, pd.DataFrame([new_txn])], ignore_index=True)
+    save_sheet(txns, "Transactions")
 
     flash(f"Successfully deposited ZAR {amount:.2f}!", "success")
     return redirect(url_for('dashboard'))
@@ -355,39 +388,27 @@ def edit_profile():
     return render_template("edit_profile.html", user=user, form=form)
 
 
-@app.route('/add_beneficiary', methods=['GET', 'POST'])
+@app.route("/add_beneficiary", methods=["GET", "POST"])
 def add_beneficiary():
-    if 'user_ID' not in session:
-        flash("Please log in first!", "danger")
-        return redirect(url_for('login'))
-    form = AddBeneficiaryForm()  # ✅ Initialize the form
-
-    user = User.query.get(session['user_ID'])
-    
-    if request.method == 'POST':
-        full_name = request.form['full_name']
-        id_number = request.form['id_number']
-        country = request.form['country']
-        bank_name = request.form['bank_name']
-        account_number = request.form['account_number']
-        currency = request.form['currency']
-
-        new_beneficiary = Beneficiary(
-            user_id=user.ID,
-            name=full_name,
-            id_number=id_number,
-            country=country,
-            bank_name=bank_name,
-            bank_account=account_number,
-            currency=currency
-        )
-
-        db.session.add(new_beneficiary)
-        db.session.commit()
-        flash("Beneficiary added successfully!", "success")
-        return redirect(url_for('dashboard'))
-
-    return render_template("add_beneficiary.html", form=form)
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        name = request.form["name"]
+        acct = request.form["bank_account"]
+        curr = request.form["currency"]
+        uid = session["user_id"]
+        bens = load_df("Beneficiaries")
+        bens = bens.append({
+            "id": str(uuid.uuid4()),
+            "user_id": uid,
+            "name": name,
+            "bank_account": acct,
+            "currency": curr
+        }, ignore_index=True)
+        save_df(bens, "Beneficiaries")
+        flash("Beneficiary added", "success")
+        return redirect(url_for("dashboard"))
+    return render_template("add_beneficiary.html")
 
 # ✅ Define this function at the top of your app.py before using it
 def convert_crypto_to_fiat(crypto_amount, target_currency):
@@ -396,84 +417,64 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
     final_amount = crypto_amount * rate * 0.98  # Apply 2% spread for profit
     return round(final_amount, 2)
 
-@app.route('/send_money', methods=['GET', 'POST'])
+@app.route("/send_money", methods=["GET", "POST"])
 def send_money():
-    if 'user_ID' not in session:
-        flash("Please log in first.", "danger")
-        return redirect(url_for('login'))
-
-    user = User.query.get(session['user_ID'])
-    beneficiaries = Beneficiary.query.filter_by(user_id=user.ID).all()
-
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    bens = load_df("Beneficiaries")
+    user_bens = bens[bens["user_id"] == uid]
     form = SendMoneyForm()
-    form.beneficiary_id.choices = [(b.id, f"{b.name} - {b.bank_account}") for b in beneficiaries]
+    form.beneficiary_id.choices = [(b["id"], f"{b['name']} ({b['currency']})") for _, b in user_bens.iterrows()]
+    if form.validate_on_submit():
+        amt = float(form.amount.data)
+        bid = form.beneficiary_id.data
+        users = load_df("Users")
+        bal = users.loc[users["id"] == uid, "balance"].iloc[0]
+        if amt > bal:
+            flash("Insufficient balance", "danger")
+        else:
+            # fee & payout
+            net = amt * 0.90
+            # exchange: lookup live rate from sheet or API stub
+            rates = load_df("Rates") if "Rates" in pd.ExcelFile(DB_FILE).sheet_names else None
+            currency = user_bens[user_bens["id"] == bid].iloc[0]["currency"]
+            rate = float(rates.loc[rates["currency"] == currency, "rate"].iloc[0]) if rates is not None else 1
+            payout = round(net * rate, 2)
+            # update balance
+            users.loc[users["id"] == uid, "balance"] -= amt
+            save_df(users, "Users")
+            # record txn
+            txns = load_df("Transactions")
+            txns = txns.append({
+                "id": str(uuid.uuid4()),
+                "user_id": uid,
+                "beneficiary_id": bid,
+                "amount_zar": amt,
+                "final_payout": payout,
+                "currency": currency,
+                "type": "Transfer",
+                "timestamp": pd.Timestamp.now()
+            }, ignore_index=True)
+            save_df(txns, "Transactions")
+            flash(f"Sent {payout} {currency}", "success")
+            return redirect(url_for("dashboard"))
+    return render_template("send_money.html", form=form)
 
-    if request.method == 'POST' and form.validate_on_submit():
-        try:
-            amount_zar = float(form.amount.data)
-            beneficiary_id = int(form.beneficiary_id.data)
-            beneficiary = Beneficiary.query.get(beneficiary_id)
-
-            if not beneficiary:
-                flash("Invalid beneficiary selected!", "danger")
-                return redirect(url_for('send_money'))
-
-            currency = beneficiary.currency  
-
-            print(f"🔹 Sending {amount_zar} ZAR to {beneficiary.name}")
-
-            if user.balance < amount_zar:
-                flash("Insufficient balance!", "danger")
-                return redirect(url_for('send_money'))
-
-            # Convert ZAR to Crypto
-            crypto_amount = convert_zar_to_crypto(amount_zar)
-
-            # Convert Crypto to Target Currency
-            final_amount = convert_crypto_to_fiat(crypto_amount, currency)
-
-            print(f"✅ Crypto Amount: {crypto_amount} | Final Amount to Beneficiary: {final_amount}")
-
-            # Simulate Payout
-            payout_success = send_payout_to_customer(beneficiary.bank_account, final_amount, currency)
-
-            if payout_success:
-                user.balance -= amount_zar
-
-                # Save transaction
-                transaction = Transaction(
-                    user_id=user.ID,
-                    beneficiary_id=beneficiary_id,
-                    amount=amount_zar,
-                    final_amount=final_amount,  
-                    currency=currency,
-                    transaction_type="Transfer",
-                    status="Success"
-                )
-                db.session.add(transaction)
-                db.session.commit()
-
-                print("✅ Transaction added to database!")
-                flash(f"Successfully sent {final_amount} {currency} to {beneficiary.name}!", "success")
-
-                return redirect(url_for('dashboard'))  # ✅ Redirect to dashboard on success
-            else:
-                flash("Transaction failed. Please try again.", "danger")
-
-        except Exception as e:
-            print(f"❌ Error processing transaction: {e}")
-            flash("An error occurred. Please try again later.", "danger")
-
-    return render_template("send_money.html", form=form, user=user, beneficiaries=beneficiaries)
-
-
-@app.route('/dashboard')
+@app.route("/dashboard")
 def dashboard():
-    if 'user_ID' not in session:
-        return redirect(url_for('login'))
-    user = User.query.get(session['user_ID'])
-    transactions = Transaction.query.filter_by(user_id=user.ID).order_by(Transaction.timestamp.desc()).all()
-    beneficiaries = Beneficiary.query.filter_by(user_id=user.ID).all()
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    uid = session["user_id"]
+    users = load_df("Users")
+    user = users[users["id"] == uid].iloc[0]
+    txns = load_df("Transactions")
+    user_txns = txns[txns["user_id"] == uid].sort_values("timestamp", ascending=False)
+    bens = load_df("Beneficiaries")
+    return render_template("dashboard.html",
+                           user=user,
+                           transactions=user_txns.to_dict(orient="records"),
+                           beneficiaries=bens.to_dict(orient="records"))
     
     # For live rates (example: using Luno rate)
     latest_rate = get_luno_crypto_rate()  # This should return a valid number
@@ -582,7 +583,14 @@ if __name__ == "__main__":
 
     with app.app_context():
         db.create_all()
-        print("Database tables created successfully!")
+    for sheet, cols in {
+        "Users": ["id","username","email","password","balance"],
+        "Beneficiaries": ["id","user_id","name","bank_account","currency"],
+        "Transactions": ["id","user_id","beneficiary_id","amount_zar","final_payout","currency","type","timestamp"],
+        "Rates": ["currency","rate"]
+    }.items():
+        if sheet not in pd.ExcelFile(DB_FILE).sheet_names:
+            pd.DataFrame(columns=cols).to_excel(DB_FILE, sheet_name=sheet, index=False)
 
     # Ensure port is correctly handled
     port = os.getenv("PORT", "8000")  # Get PORT as a string, default to "8000"
