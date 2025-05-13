@@ -3,132 +3,205 @@
 {% block content %}
 
 <div class="container mt-4">
-    <h2 class="text-center">Dashboard</h2>
-    
-    <!-- Display Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
+  <h2 class="text-center">Dashboard</h2>
 
-    <p><strong>Welcome, {{ user.username }}!</strong></p>
-    <p>Your unique account number: <strong>{{ user.account_number }}</strong></p>
-    <p>Your current balance: <strong>ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
+  <!-- Display Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
 
-    <!-- Live Exchange Rates -->
-    <h3>Live Exchange Rate</h3>
-    <p>
-        <strong>1 ZAR = </strong>
-        <span id="exchange_rate" class="flashing">Fetching...</span>
-        <strong id="selected_currency">USD</strong>
-    </p>
+  <!-- ❖ Stats Cards -->
+  <div class="row text-center mb-4">
+    <div class="col-md-4 mb-2">
+      <div class="card text-white mb-4" style="background-color: #f4a261;">
+        <div class="card-body">
+          <h6>Total Balance</h6>
+          <h3>ZAR {{ "%.2f"|format(user.balance) }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-2">
+      <div class="card text-white mb-4" style="background-color: #2a9d8f;">
+        <div class="card-body">
+          <h6>Your Beneficiaries</h6>
+          <h3>{{ beneficiaries|length }}</h3>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-2">
+      <div class="card text-white mb-4" style="background-color: #e76f51;">
+        <div class="card-body">
+          <h6>Transactions</h6>
+          <h3>{{ transactions|length }}</h3>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <!-- Deposit Funds -->
-    <h3>Deposit ZAR</h3>
-    <form method="post" action="{{ url_for('deposit') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="number" name="amount" id="depositAmount" class="form-control" placeholder="Enter ZAR Amount" required>
-        <button type="submit" class="btn btn-success mt-2">Confirm Deposit</button>
-    </form>
+  <!-- ❖ Welcome & Account Info -->
+  <p><strong>Welcome, {{ user.username }}!</strong></p>
+  <p>Your account number: <strong>{{ user.account_number }}</strong></p>
 
-    <!-- How It Works Section -->
-    <h3>How it Works</h3>
-    <p>
-        <strong>iTradeAfrika®</strong> enables instant cross-border money transfers using crypto for the best exchange rates.
-        Deposit ZAR into our Capitec Business Account <strong>(1052923917, Branch Code: 450105, SWIFT: CABLZAJJ)</strong> using your account number as the reference.
-    </p>
-    <p>
-        We convert it at the lowest rate, exchange it into USD, BWP, EUR, GBP, or CNY with a <strong>10% fee</strong>, and instantly send it to the beneficiary’s bank account within hours.
-        For support, call or WhatsApp <strong>073 916 1782</strong>. 🚀
-    </p>
+  <!-- ❖ Live Exchange Rates -->
+  <h3>Live Exchange Rate</h3>
+  <p>
+    <strong>1 ZAR = </strong>
+    <span id="exchange_rate" class="flashing">Fetching...</span>
+    <strong id="selected_currency">USD</strong>
+  </p>
 
-    <hr>
-    <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success">Add Beneficiary</a>
-    <a href="{{ url_for('send_money') }}" class="btn btn-primary">Send Money</a>
+  <!-- ❖ Deposit Funds -->
+  <h3>Deposit ZAR</h3>
+  <form method="post" action="{{ url_for('deposit') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="input-group mb-3">
+      <input type="number" name="amount" step="0.01" class="form-control"
+             placeholder="Enter ZAR Amount" required>
+      <button type="submit" class="btn btn-success">Confirm Deposit</button>
+    </div>
+  </form>
 
-    <!-- Transaction History -->
-    <h3>Transaction History</h3>
-    <table class="table table-bordered">
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Amount (ZAR)</th>
-                <th>Final Payout</th>
-                <th>Currency</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for txn in transactions %}
-            <tr>
-                <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>
-                    {% if txn.transaction_type == "Deposit" %}
-                        Deposit
-                    {% else %}
-                        Payment to {{ txn.beneficiary.name if txn.beneficiary else "N/A" }}
-                    {% endif %}
-                </td>
-                <td>ZAR {{ "%.2f"|format(txn.amount) }}</td>
-                <td>{{ "%.2f"|format(txn.final_amount or 0) }} {{ txn.currency }}</td>
-                <td>{{ txn.currency }}</td>
-                <td>
-                    {% if txn.status == "Pending" %}
-                        <span class="badge bg-warning">Pending</span>
-                    {% elif txn.status == "Success" %}
-                        <span class="badge bg-success">Success</span>
-                    {% else %}
-                        <span class="badge bg-danger">Failed</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <!-- ❖ Quick Conversion Preview -->
+  <h3>Quick Conversion Preview</h3>
+  <form id="convertForm" class="row g-2 mb-4">
+    <div class="col-sm-4">
+      <input type="number" step="0.01" name="amount" class="form-control"
+             placeholder="ZAR Amount" required>
+    </div>
+    <div class="col-sm-4">
+      <select name="currency" class="form-select">
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+        <option value="BWP">BWP</option>
+        <option value="CNY">CNY</option>
+      </select>
+    </div>
+    <div class="col-sm-4">
+      <button type="submit" class="btn btn-outline-primary w-100">Preview</button>
+    </div>
+  </form>
+  <div id="previewResult" class="mb-4"></div>
+
+  <!-- ❖ How It Works -->
+  <h3>How it Works</h3>
+  <p>
+    <strong>iTradeAfrika®</strong> enables instant cross‑border transfers using crypto.
+    Deposit ZAR into our Capitec Business Account
+    <strong>(1052923917, Branch Code: 450105, SWIFT: CABLZAJJ)</strong>
+    with your account number as reference.
+  </p>
+  <p>
+    We convert at the best rate, apply a 10% fee, and send USD/BWP/EUR/GBP/CNY
+    to your beneficiary within hours.
+  </p>
+
+  <!-- ❖ Need Help Card -->
+  <div class="card text-white mb-4" style="background-color: #1e3d59;">
+    <div class="card-body">
+      <h5 class="card-title">Need Help?</h5>
+      <p class="card-text">
+        📧 Email us at
+        <a href="mailto:itradeafrika@gmail.com">itradeafrika@gmail.com</a><br>
+        📱 WhatsApp/Call: <strong>073 916 1782</strong>
+      </p>
+      <a href="{{ url_for('logout') }}" class="btn btn-outline-danger">Logout</a>
+    </div>
+  </div>
+
+  <!-- Navigation Buttons -->
+  <a href="{{ url_for('add_beneficiary') }}" class="btn btn-success me-2">Add Beneficiary</a>
+  <a href="{{ url_for('send_money') }}"        class="btn btn-primary">Send Money</a>
+
+  <!-- ❖ Transaction History -->
+  <h3 class="mt-4">Transaction History</h3>
+  <table class="table table-bordered">
+    <thead>
+      <tr>
+        <th>Date</th><th>Type</th><th>Amount (ZAR)</th>
+        <th>Final Payout</th><th>Currency</th><th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for txn in transactions %}
+      <tr>
+        <td>{{ txn.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td>
+          {% if txn.transaction_type == "Deposit" %}
+            Deposit
+          {% else %}
+            Payment to {{ txn.beneficiary.name if txn.beneficiary else "N/A" }}
+          {% endif %}
+        </td>
+        <td>ZAR {{ "%.2f"|format(txn.amount) }}</td>
+        <td>{{ "%.2f"|format(txn.final_amount or 0) }} {{ txn.currency }}</td>
+        <td>{{ txn.currency }}</td>
+        <td>
+          {% if txn.status == "Pending" %}
+            <span class="badge bg-warning">Pending</span>
+          {% elif txn.status == "Success" %}
+            <span class="badge bg-success">Success</span>
+          {% else %}
+            <span class="badge bg-danger">Failed</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
-<!-- JavaScript for Live Rates -->
+<!-- JavaScript for Live Rates & Conversion Preview -->
 <script>
 function updateExchangeRate() {
-    fetch('/get_live_rates')
-        .then(response => response.json())
-        .then(data => {
-            if (data.error) {
-                console.error("API Error:", data.error);
-                return;
-            }
-            document.getElementById("exchange_rate").innerText = data.exchange_rate;
-            document.getElementById("selected_currency").innerText = data.selected_currency;
-            flashRates();
-        })
-        .catch(error => console.error("Error fetching live rates:", error));
+  fetch('/get_live_rates')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.error) {
+        document.getElementById("exchange_rate").innerText = data.exchange_rate;
+        document.getElementById("selected_currency").innerText = data.selected_currency;
+        const el = document.getElementById("exchange_rate");
+        el.classList.add("flash");
+        setTimeout(() => el.classList.remove("flash"), 500);
+      }
+    });
 }
-
-function flashRates() {
-    let rateElement = document.getElementById("exchange_rate");
-    rateElement.classList.add("flash");
-    setTimeout(() => rateElement.classList.remove("flash"), 500);
-}
-
 setInterval(updateExchangeRate, 10000);
+updateExchangeRate();
+
+document.getElementById("convertForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const params = new URLSearchParams(new FormData(e.target));
+  fetch(`/get_conversion_preview?${params}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        alert(data.error);
+      } else {
+        document.getElementById("previewResult").innerHTML = `
+          <p>Entered: ZAR ${data.amount_entered.toFixed(2)}</p>
+          <p>After fees: ZAR ${data.amount_after_fees.toFixed(2)}</p>
+          <p>Payout: ${data.final_payout.toFixed(2)} ${data.payout_currency}</p>
+        `;
+      }
+    });
+});
 </script>
 
 <style>
 @keyframes flash {
-    0% { background-color: yellow; }
+    0%, 100% { background-color: gold; }
     50% { background-color: transparent; }
-    100% { background-color: yellow; }
 }
 .flash {
     animation: flash 0.5s ease-in-out;
 }
 </style>
-
 {% endblock %}
