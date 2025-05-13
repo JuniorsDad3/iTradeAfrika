@@ -23,6 +23,7 @@ import uuid
 import imaplib
 import email
 import re
+import secrets
 import luno_python
 from requests.auth import HTTPBasicAuth
 import pandas as pd
@@ -128,6 +129,7 @@ class SendMoneyForm(FlaskForm):
 
 class EditProfileForm(FlaskForm):
     name = StringField("Full Name", validators=[DataRequired()])
+    username = StringField('Username', validators=[DataRequired()])
     email = StringField("Email", validators=[DataRequired(), Email()])
     submit = SubmitField("Update Profile")
 
@@ -360,7 +362,7 @@ def login():
         app.logger.debug(f"Entered password: {repr(entered_pw)}")
 
         if stored_hash and check_password_hash(stored_hash, entered_pw):
-            session["user_ID"] = row.iloc[0]["id"]  # make sure this matches everywhere
+            session["user_id"] = row.iloc[0]["id"]  # make sure this matches everywhere
             flash("Login successful!", "success")
             return redirect(url_for("dashboard"))
         else:
@@ -370,7 +372,7 @@ def login():
 
 @app.route('/logout')
 def logout():
-    session.pop('user_ID', None)
+    session.pop('user_id', None)
     flash("You have been logged out.", "info")
     return redirect(url_for('login'))
 
@@ -432,25 +434,33 @@ def deposit():
     flash(f"Deposited ZAR {amt:.2f}", "success")
     return redirect(url_for("dashboard"))
 
-
 @app.route('/edit_profile', methods=['GET', 'POST'])
 def edit_profile():
-    if 'user_ID' not in session:
-        flash("Please log in first!", "danger")
+    if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    user = User.query.get(session['user_ID'])
-    form = EditProfileForm()  
+    df = pd.read_excel(DB_FILE)
+    user_id = session['user_id']
+    user = df[df['id'] == user_id]
 
-    if request.method == 'POST':
-        if 'email' in request.form and 'full_name' in request.form:
-            user.email = request.form['email']
-            user.full_name = request.form['full_name']
-            db.session.commit()
-            flash("Profile updated successfully!", "success")
-            return redirect(url_for('dashboard'))
+    if user.empty:
+        return "User not found", 404
 
-    return render_template("edit_profile.html", user=user, form=form)
+    user_data = user.iloc[0]
+    form = EditProfileForm(data={
+        'username': user_data['username'],
+        'email': user_data['email']
+    })
+
+    if form.validate_on_submit():
+        df.loc[df['id'] == user_id, 'username'] = form.username.data
+        df.loc[df['id'] == user_id, 'email'] = form.email.data
+        df.to_excel(DB_FILE, index=False)
+        flash("Profile updated successfully", "success")
+        return redirect(url_for('dashboard'))
+
+    return render_template('edit_profile.html', user=user_data, form=form)
+
 
 @app.route("/add_beneficiary", methods=["GET", "POST"])
 def add_beneficiary():
@@ -500,7 +510,7 @@ def add_beneficiary():
         return redirect(url_for("dashboard"))
 
     # GET
-    return render_template("add_beneficiary.html")
+    return render_template("add_beneficiary.html", form=form)
 
 
 # ✅ Define this helper at top of your file
@@ -523,6 +533,7 @@ def send_money():
     # Load and filter beneficiaries
     bens = load_df("Beneficiaries")
     my_bens = bens[bens["user_id"] == session["user_id"]]
+
 
     if request.method == "POST":
         # Parse inputs
@@ -586,7 +597,7 @@ def send_money():
         return redirect(url_for("dashboard"))
 
     # GET
-    return render_template("send_money.html", beneficiaries=my_bens.to_dict("records"))
+    return render_template("send_money.html",user=user, beneficiaries=my_bens.to_dict("records"))
 
 @app.route("/dashboard")
 def dashboard():

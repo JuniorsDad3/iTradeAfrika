@@ -7,7 +7,6 @@
     <p><strong>Your Balance: ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
 
     <form method="post" action="{{ url_for('send_money') }}" id="sendMoneyForm">
-        {{ form.hidden_tag() }}
 
         <div class="mb-3">
             <label for="amount" class="form-label">Enter Amount (ZAR)</label>
