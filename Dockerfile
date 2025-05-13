@@ -12,13 +12,15 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     unixodbc \
     unixodbc-dev \
-    build-essential  # Added for some Python dependencies
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add the Microsoft repository and install ODBC Driver 18 for SQL Server
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
     && curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list \
     && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 odbcinst libodbc1
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 odbcinst libodbc1 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the library path so that the driver can be found
 ENV LD_LIBRARY_PATH=/opt/microsoft/msodbcsql18/lib64:$LD_LIBRARY_PATH

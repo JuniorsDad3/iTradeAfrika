@@ -26,6 +26,9 @@ import re
 import luno_python
 from requests.auth import HTTPBasicAuth
 import pandas as pd
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 # Load environment variables
 load_dotenv()
@@ -258,13 +261,26 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
     final_amount = crypto_amount * rate * 0.98  # Apply 2% spread for profit
     return round(final_amount, 2)
 
-def safe_send_email(to, subject, html_body):
-    msg = Message(subject, recipients=[to], html=html_body)
-    try:
-        mail.send(msg)
-    except Exception as e:
-        current_app.logger.error(f"Mail send failed: {e}")
 
+def send_email(to_email, subject, body):
+    from_email = "itradeafrika@gmail.com"  # Your sending email
+    from_password = "your_app_password_here"  # Use App Password (e.g. Gmail's App Password)
+
+    msg = MIMEMultipart()
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "plain"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(from_email, from_password)
+            server.send_message(msg)
+            print("Email sent to", to_email)
+    except Exception as e:
+        print("Error sending email:", e)
 
 @app.route('/')
 def home():
