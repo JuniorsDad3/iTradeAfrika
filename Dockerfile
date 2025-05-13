@@ -28,14 +28,14 @@ ENV LD_LIBRARY_PATH=/opt/microsoft/msodbcsql18/lib64:$LD_LIBRARY_PATH
 # Set the working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
+# Copy the requirements file and install Python dependencies
 COPY requirements.txt /app/
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Copy the rest of the application code
 COPY . /app/
 
-# Expose the correct port
+# Expose the correct port (default is 8000)
 EXPOSE 8000
 
 # Set a default port in case $PORT is not provided by the environment

@@ -293,6 +293,9 @@ def register():
     if form.validate_on_submit():
         users = load_df("Users")
 
+        app.logger.debug(f"Attempting registration: username={form.username.data}, email={form.email.data}")
+
+
         # Prevent duplicate usernames
         if form.username.data in users["username"].values:
             flash("Username already taken", "danger")
@@ -308,6 +311,10 @@ def register():
             "balance": 0.0,
             "created_at": datetime.utcnow()
         }
+
+
+        app.logger.debug(f"Generated account: {new['account_number']}")
+        app.logger.debug(f"Password hash: {new['password_hash']}")
 
         # Append, save, and notify
         users = pd.concat([users, pd.DataFrame([new])], ignore_index=True)
@@ -336,21 +343,24 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         users = load_df("Users")
-        users.columns = users.columns.str.strip()  # drop stray spaces
+        users.columns = users.columns.str.strip()
 
-        row = users[users["username"] == form.username.data]
+        app.logger.debug(f"Login attempt for username: {form.username.data}")
+
+        # Match trimmed username
+        row = users[users["username"].str.strip() == form.username.data.strip()]
         if row.empty:
             flash("Invalid username or password", "danger")
             return render_template("login.html", form=form)
 
         stored_hash = str(row.iloc[0]["password_hash"]).strip()
-        entered_pw  = form.password.data.strip()
+        entered_pw = form.password.data.strip()
 
-        app.logger.debug(f"stored_hash={repr(stored_hash)}")
-        app.logger.debug(f"entered_pw ={repr(entered_pw)}")
+        app.logger.debug(f"Stored hash: {repr(stored_hash)}")
+        app.logger.debug(f"Entered password: {repr(entered_pw)}")
 
         if stored_hash and check_password_hash(stored_hash, entered_pw):
-            session["user_id"] = row.iloc[0]["id"]
+            session["user_ID"] = row.iloc[0]["id"]  # make sure this matches everywhere
             flash("Login successful!", "success")
             return redirect(url_for("dashboard"))
         else:
