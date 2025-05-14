@@ -265,24 +265,30 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
 
 
 def send_email(to_email, subject, body):
-    from_email = "itradeafrika@gmail.com"  # Your sending email
-    from_password = "your_app_password_here"  # Use App Password (e.g. Gmail's App Password)
+    from_email = app.config['MAIL_USERNAME']
+    password   = app.config['MAIL_PASSWORD']
 
     msg = MIMEMultipart()
-    msg["From"] = from_email
-    msg["To"] = to_email
+    msg["From"]    = from_email
+    msg["To"]      = to_email
     msg["Subject"] = subject
-
-    msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "html"))  # use HTML if you send <p> tags
 
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(from_email, from_password)
-            server.send_message(msg)
-            print("Email sent to", to_email)
+        # choose SSL vs TLS based on config
+        if app.config['MAIL_USE_SSL']:
+            server = smtplib.SMTP_SSL(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+        else:
+            server = smtplib.SMTP(app.config['MAIL_SERVER'], app.config['MAIL_PORT'])
+            if app.config['MAIL_USE_TLS']:
+                server.starttls()
+
+        server.login(from_email, password)
+        server.send_message(msg)
+        server.quit()
+        app.logger.info(f"Email sent to {to_email}")
     except Exception as e:
-        print("Error sending email:", e)
+        app.logger.error(f"Error sending email: {e}")
 
 @app.route('/')
 def home():
