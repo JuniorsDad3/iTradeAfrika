@@ -135,6 +135,7 @@ class EditProfileForm(FlaskForm):
 
 class AddBeneficiaryForm(FlaskForm):
     full_name = StringField('Full Name', validators=[DataRequired()])
+    name = StringField('Name', validators=[DataRequired()])
     id_number = StringField('ID Number', validators=[DataRequired()])
     country = StringField('Country', validators=[DataRequired()])
     bank_name = StringField('Bank Name', validators=[DataRequired()])
