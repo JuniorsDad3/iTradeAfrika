@@ -41,49 +41,79 @@
 
 <!-- JavaScript -->
 <script>
-document.getElementById("sendMoneyForm").addEventListener("submit", function() {
-    document.getElementById("sendMoneyButton").disabled = true;
-    document.getElementById("sendMoneyButton").innerText = "Processing...";
-document.getElementById("amount").addEventListener("input", updateTransactionPreview);
-document.getElementById("beneficiary_id").addEventListener("change", updateTransactionPreview);
+document.addEventListener("DOMContentLoaded", function() {
+  const form = document.getElementById("sendMoneyForm");
+  const amountInput = document.getElementById("amount");
+  const beneficiarySelect = document.getElementById("beneficiary_id");
+  const sendButton = document.getElementById("sendMoneyButton");
+  const confirmationMessage = document.getElementById("confirmationMessage");
+  const beneficiaryNameSpan = document.getElementById("beneficiaryName");
 
-function updateTransactionPreview() {
-    let amountZAR = parseFloat(document.getElementById("amount").value) || 0;
-    let beneficiarySelect = document.getElementById("beneficiary_id");
+  function updateTransactionPreview() {
+    let amountZAR = parseFloat(amountInput.value) || 0;
     let selectedOption = beneficiarySelect.options[beneficiarySelect.selectedIndex];
-    let beneficiaryCurrency = selectedOption.getAttribute("data-currency");
+    let beneficiaryCurrency = selectedOption ? selectedOption.getAttribute("data-currency") : null;
 
     if (amountZAR > 0 && beneficiaryCurrency) {
-        fetch(`/get_conversion_preview?amount=${amountZAR}&currency=${beneficiaryCurrency}`)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById("amountEntered").textContent = data.amount_entered;
-                document.getElementById("amountAfterFees").textContent = data.amount_after_fees;
-                document.getElementById("finalPayout").textContent = data.final_payout;
-                document.getElementById("payoutCurrency").textContent = data.payout_currency;
-            })
-            .catch(error => console.error("Error fetching transaction preview:", error));
+      fetch(`/get_conversion_preview?amount=${amountZAR}&currency=${beneficiaryCurrency}`)
+        .then(response => response.json())
+        .then(data => {
+          if (!data.error) {
+            document.getElementById("amountEntered").textContent = data.amount_entered.toFixed(2);
+            document.getElementById("amountAfterFees").textContent = data.amount_after_fees.toFixed(2);
+            document.getElementById("finalPayout").textContent = data.final_payout.toFixed(2);
+            document.getElementById("payoutCurrency").textContent = data.payout_currency;
+          }
+        })
+        .catch(error => console.error("Error fetching transaction preview:", error));
+    } else {
+      // Reset preview if inputs invalid
+      document.getElementById("amountEntered").textContent = "0";
+      document.getElementById("amountAfterFees").textContent = "0";
+      document.getElementById("finalPayout").textContent = "0";
+      document.getElementById("payoutCurrency").textContent = "---";
     }
-}
+  }
 
-// Flash Confirmation Message after submission
-document.querySelector("form").addEventListener("submit", function(event) {
-    event.preventDefault(); // Prevent default form submission
-    fetch("{{ url_for('send_money') }}", {
-        method: "POST",
-        body: new FormData(this)
+  // Attach input listeners to update preview immediately
+  amountInput.addEventListener("input", updateTransactionPreview);
+  beneficiarySelect.addEventListener("change", updateTransactionPreview);
+
+  // Submit handler with AJAX POST
+  form.addEventListener("submit", function(event) {
+    event.preventDefault();
+    sendButton.disabled = true;
+    sendButton.innerText = "Processing...";
+
+    fetch(form.action, {
+      method: "POST",
+      body: new FormData(form),
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            document.getElementById("confirmationMessage").style.display = "block";
-            document.getElementById("beneficiaryName").textContent = data.beneficiary;
-            setTimeout(() => window.location.href = "{{ url_for('dashboard') }}", 2000);
-        } else {
-            alert("Transaction failed: " + data.message);
-        }
+      if (data.success) {
+        confirmationMessage.style.display = "block";
+        beneficiaryNameSpan.textContent = data.beneficiary;
+        // Optionally reset form or disable inputs here
+        setTimeout(() => {
+          window.location.href = "{{ url_for('dashboard') }}";
+        }, 2000);
+      } else {
+        alert("Transaction failed: " + data.message);
+        sendButton.disabled = false;
+        sendButton.innerText = "Send Money";
+      }
     })
-    .catch(error => console.error("Error processing transaction:", error));
+    .catch(error => {
+      console.error("Error processing transaction:", error);
+      alert("An error occurred. Please try again.");
+      sendButton.disabled = false;
+      sendButton.innerText = "Send Money";
+    });
+  });
+
+  // Initialize preview on page load in case values exist
+  updateTransactionPreview();
 });
 </script>
 

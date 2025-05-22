@@ -484,8 +484,8 @@ def add_beneficiary():
         uid  = session["user_id"]
 
     if request.method == "POST":
-        name = request.form["name"]
-        acct = request.form["bank_account"]
+        name = request.form.get("full_name")
+        acct = request.form.get("account_number")
         curr = request.form["currency"]
         uid = session["user_id"]
 
@@ -493,13 +493,14 @@ def add_beneficiary():
         bens = load_df("Beneficiaries")
         new_ben = {
             "id":           str(uuid.uuid4()),
-            "user_id":      uid,
+            "user_id": str(uid).strip(),
             "name":         name,
             "bank_account": acct,
             "currency":     curr
         }
         bens = pd.concat([bens, pd.DataFrame([new_ben])], ignore_index=True)
-        save_df(bens, "Beneficiaries")
+
+        save_sheet(bens, "beneficiaries")
 
         # Send notification email
         users = load_df("Users")
@@ -527,7 +528,6 @@ def convert_crypto_to_fiat(crypto_amount, target_currency):
     final_amount = crypto_amount * rate * 0.98  # 2% spread
     return round(final_amount, 2)
 
-
 @app.route("/send_money", methods=["GET", "POST"])
 def send_money():
     if "user_id" not in session:
@@ -539,8 +539,9 @@ def send_money():
 
     # Load and filter beneficiaries
     bens = load_df("Beneficiaries")
-    my_bens = bens[bens["user_id"] == session["user_id"]]
-
+    bens["user_id"] = bens["user_id"].astype(str).str.strip()
+    uid = str(session["user_id"]).strip()
+    my_bens = bens[bens["user_id"] == uid]
 
     if request.method == "POST":
         # Parse inputs
@@ -553,7 +554,7 @@ def send_money():
 
         # Verify beneficiary belongs to user
         if bid not in my_bens["id"].astype(str).values:
-            flash("Bad beneficiary", "danger")
+            flash("Invalid beneficiary", "danger")
             return redirect(url_for("send_money"))
 
         # Calculate fee, lookup rate, compute payout
@@ -600,18 +601,20 @@ def send_money():
             )
         )
 
-        flash(f"Sent {payout} {cur} (after fee)", "success")
+        # ✅ These must be inside the POST block
+        flash(f"Transfer to {ben['name']} successful!", "success")
         return redirect(url_for("dashboard"))
 
-    # GET
-    return render_template("send_money.html",user=user, beneficiaries=my_bens.to_dict("records"))
+    # GET request
+    return render_template("send_money.html", user=user, beneficiaries=my_bens.to_dict("records"))
+
 
 @app.route("/dashboard")
 def dashboard():
     if "user_id" not in session:
         return redirect(url_for("login"))
 
-    uid = session["user_id"]
+    uid = str(session["user_id"]).strip()
 
     users = load_df("Users")
     user = users[users["id"] == uid].iloc[0]
@@ -620,6 +623,8 @@ def dashboard():
     user_txns = txns[txns["user_id"] == uid].sort_values("timestamp", ascending=False)
 
     bens = load_df("Beneficiaries")
+    bens["user_id"] = bens["user_id"].astype(str).str.strip()
+    my_bens = bens[bens["user_id"] == uid]
 
     # Live crypto exchange rate (e.g., ZAR to USDT)
     latest_rate = get_luno_crypto_rate()  # Assumes a numeric return value
@@ -635,7 +640,7 @@ def dashboard():
         exchange_rate=latest_rate,
         converted_usdt=converted_usdt,
         fees=fees,
-        beneficiaries=bens.to_dict(orient="records")
+        beneficiaries=my_bens.to_dict(orient="records")  # use filtered beneficiaries
     )
 
 @app.route('/get_conversion_preview')
