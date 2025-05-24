@@ -6,24 +6,25 @@
     <h2 class="text-center">Send Money</h2>
     <p><strong>Your Balance: ZAR {{ "%.2f"|format(user.balance) }}</strong></p>
 
-    <form method="post" action="{{ url_for('send_money') }}" id="sendMoneyForm">
+<form method="post" action="{{ url_for('send_money') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    
+    <div class="mb-3">
+        <label for="amount" class="form-label">Enter Amount (ZAR)</label>
+        <input type="number" name="amount" id="amount" class="form-control" placeholder="Enter ZAR Amount" required>
+    </div>
 
-        <div class="mb-3">
-            <label for="amount" class="form-label">Enter Amount (ZAR)</label>
-            <input type="number" name="amount" id="amount" class="form-control" placeholder="Enter ZAR Amount" required>
-        </div>
-
-        <div class="mb-3">
-            <label for="beneficiary_id" class="form-label">Select Beneficiary</label>
-            <select name="beneficiary_id" id="beneficiary_id" class="form-control" required>
-                <option value="">-- Choose a Beneficiary --</option>
-                {% for b in beneficiaries %}
-                    <option value="{{ b.id }}" data-currency="{{ b.currency }}">
-                        {{ b.name }} - {{ b.bank_account }} ({{ b.currency }})
-                    </option>
-                {% endfor %}
-            </select>
-        </div>
+    <div class="mb-3">
+        <label for="beneficiary_id" class="form-label">Select Beneficiary</label>
+        <select name="beneficiary_id" id="beneficiary_id" class="form-control" required>
+            <option value="">-- Choose a Beneficiary --</option>
+            {% for b in beneficiaries %}
+                <option value="{{ b.id }}" data-currency="{{ b.currency }}">
+                    {{ b.name }} - {{ b.bank_account }} ({{ b.currency }})
+                </option>
+            {% endfor %}
+        </select>
+    </div>
 
         <!-- Transaction Preview -->
         <h3>Transaction Preview</h3>
@@ -31,23 +32,15 @@
         <p><strong>Amount After Fees (10% Deducted):</strong> ZAR <span id="amountAfterFees">0</span></p>
         <p><strong>Final Payout:</strong> <span id="finalPayout">0</span> <span id="payoutCurrency">---</span></p>
 
-        <button type="submit" id="sendMoneyButton" class="btn btn-primary">Send Money</button>
+        <button type="submit" class="btn btn-primary">Send Money</button>
     </form>
-
-    <div id="confirmationMessage" class="alert alert-success mt-3" style="display: none;">
-        ✅ Transaction successful! Money has been sent to <span id="beneficiaryName"></span>.
-    </div>
 </div>
 
-<!-- JavaScript -->
+<!-- JavaScript for transaction preview only -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
-  const form = document.getElementById("sendMoneyForm");
   const amountInput = document.getElementById("amount");
   const beneficiarySelect = document.getElementById("beneficiary_id");
-  const sendButton = document.getElementById("sendMoneyButton");
-  const confirmationMessage = document.getElementById("confirmationMessage");
-  const beneficiaryNameSpan = document.getElementById("beneficiaryName");
 
   function updateTransactionPreview() {
     let amountZAR = parseFloat(amountInput.value) || 0;
@@ -65,9 +58,10 @@ document.addEventListener("DOMContentLoaded", function() {
             document.getElementById("payoutCurrency").textContent = data.payout_currency;
           }
         })
-        .catch(error => console.error("Error fetching transaction preview:", error));
+        .catch(error => {
+          console.error("Error fetching transaction preview:", error);
+        });
     } else {
-      // Reset preview if inputs invalid
       document.getElementById("amountEntered").textContent = "0";
       document.getElementById("amountAfterFees").textContent = "0";
       document.getElementById("finalPayout").textContent = "0";
@@ -75,45 +69,8 @@ document.addEventListener("DOMContentLoaded", function() {
     }
   }
 
-  // Attach input listeners to update preview immediately
   amountInput.addEventListener("input", updateTransactionPreview);
   beneficiarySelect.addEventListener("change", updateTransactionPreview);
-
-  // Submit handler with AJAX POST
-  form.addEventListener("submit", function(event) {
-    event.preventDefault();
-    sendButton.disabled = true;
-    sendButton.innerText = "Processing...";
-
-    fetch(form.action, {
-      method: "POST",
-      body: new FormData(form),
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        confirmationMessage.style.display = "block";
-        beneficiaryNameSpan.textContent = data.beneficiary;
-        // Optionally reset form or disable inputs here
-        setTimeout(() => {
-          window.location.href = "{{ url_for('dashboard') }}";
-        }, 2000);
-      } else {
-        alert("Transaction failed: " + data.message);
-        sendButton.disabled = false;
-        sendButton.innerText = "Send Money";
-      }
-    })
-    .catch(error => {
-      console.error("Error processing transaction:", error);
-      alert("An error occurred. Please try again.");
-      sendButton.disabled = false;
-      sendButton.innerText = "Send Money";
-    });
-  });
-
-  // Initialize preview on page load in case values exist
-  updateTransactionPreview();
 });
 </script>
 

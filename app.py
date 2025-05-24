@@ -500,7 +500,7 @@ def add_beneficiary():
         }
         bens = pd.concat([bens, pd.DataFrame([new_ben])], ignore_index=True)
 
-        save_sheet(bens, "beneficiaries")
+        save_sheet(bens, "Beneficiaries")
 
         # Send notification email
         users = load_df("Users")
@@ -572,7 +572,7 @@ def send_money():
             flash("Insufficient funds", "danger")
             return redirect(url_for("send_money"))
         users.at[idx, "balance"] -= amt
-        save_df(users, "Users")
+        save_sheet(users, "Users")
 
         # Record transaction
         txns = load_df("Transactions")
@@ -588,7 +588,7 @@ def send_money():
             "timestamp":       datetime.utcnow()
         }
         txns = pd.concat([txns, pd.DataFrame([new_txn])], ignore_index=True)
-        save_df(txns, "Transactions")
+        save_sheet(txns, "Transactions")
 
         # Send confirmation email
         user = users.loc[idx]
