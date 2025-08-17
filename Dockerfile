@@ -15,13 +15,13 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Add Microsoft repository and install ODBC Driver 18 for SQL Server (modern method)
+# Add Microsoft repository and install ODBC Driver 18 for SQL Server
 RUN mkdir -p /etc/apt/keyrings \
     && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /etc/apt/keyrings/microsoft.gpg \
     && curl -sSL https://packages.microsoft.com/config/ubuntu/20.04/prod.list | \
        sed 's#deb https://#deb [signed-by=/etc/apt/keyrings/microsoft.gpg] https://#' \
        > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
+    && apt-get update --allow-unauthenticated \
     && ACCEPT_EULA=Y apt-get install -y msodbcsql18 odbcinst libodbc1 \
     && rm -rf /var/lib/apt/lists/*
 
