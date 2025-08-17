@@ -1,39 +1,118 @@
 {% extends "base.html" %}
-
+{% block title %}Edit Profile{% endblock %}
 {% block content %}
-<h2>Edit Profile</h2>
-<form method="POST">
-    {{ form.hidden_tag() }}  <!-- ✅ Add this line for CSRF protection -->
 
-    <label>Email:</label>
-    <input type="email" name="email" class="form-control" value="{{ user.email }}" required>
-    
-    <label>Full Name:</label>
-    <input type="text" name="full_name" value="{{ user.full_name }}" required><br>
+<div class="container mt-4">
+  <h2 class="mb-4">Edit Profile</h2>
+  <form method="POST">
+    {{ form.hidden_tag() }}
 
-    <label>ID Number:</label>
-    <input type="text" name="id_number" value="{{ user.id_number }}"><br>
+    <div class="card p-4 shadow-sm mb-4">
+      <h4 class="mb-3">Personal Information</h4>
 
-    <label>Passport Number (if applicable):</label>
-    <input type="text" name="passport_number" value="{{ user.passport_number }}"><br>
+      <div class="form-group mb-3">
+        <label>Full Name</label>
+        <input type="text" name="full_name" class="form-control" value="{{ user.full_name }}">
+      </div>
 
-    <label>Address:</label>
-    <input type="text" name="address" value="{{ user.address }}" required><br>
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>ID Number</label>
+          <input type="text" name="id_number" class="form-control" value="{{ user.id_number }}">
+        </div>
+        <div class="form-group col-md-6 mb-3">
+          <label>Passport Number</label>
+          <input type="text" name="passport_number" class="form-control" value="{{ user.passport_number }}">
+        </div>
+      </div>
 
-    <label>Country Code:</label>
-    <input type="text" name="country_code" value="{{ user.country_code }}" required><br>
+      <div class="form-group mb-3">
+        <label>Date of Birth</label>
+        <input type="date" name="date_of_birth" class="form-control" value="{{ user.date_of_birth }}">
+      </div>
 
-    <label>Phone Number:</label>
-    <input type="text" name="phone_number" value="{{ user.phone_number }}" required><br>
+      <div class="form-group mb-3">
+        <label>Address</label>
+        <input type="text" name="address" class="form-control" value="{{ user.address }}">
+      </div>
 
-    <h3>Bank Details</h3>
-    <label>Bank Name:</label>
-    <input type="text" name="bank_name" value="{{ user.bank_name }}" required><br>
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>Country</label>
+          <input type="text" name="country" class="form-control" value="{{ user.country }}">
+        </div>
+        <div class="form-group col-md-3 mb-3">
+          <label>Country Code</label>
+          <input type="text" name="country_code" class="form-control" value="{{ user.country_code }}">
+        </div>
+        <div class="form-group col-md-3 mb-3">
+          <label>Postal Code</label>
+          <input type="text" name="postal_code" class="form-control" value="{{ user.postal_code }}">
+        </div>
+      </div>
 
-    <label>Bank Account Number:</label>
-    <input type="text" name="bank_account_number" value="{{ user.bank_account_number }}" required><br>
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>Nationality</label>
+          <input type="text" name="nationality" class="form-control" value="{{ user.nationality }}">
+        </div>
+        <div class="form-group col-md-6 mb-3">
+          <label>Phone Number</label>
+          <input type="text" name="phone_number" class="form-control" value="{{ user.phone_number }}">
+        </div>
+      </div>
 
-    <button type="submit">Update Profile</button>
-</form>
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>Occupation</label>
+          <input type="text" name="occupation" class="form-control" value="{{ user.occupation }}">
+        </div>
+        <div class="form-group col-md-6 mb-3">
+          <label>Source of Funds</label>
+          <input type="text" name="source_of_funds" class="form-control" value="{{ user.source_of_funds }}">
+        </div>
+      </div>
+
+      <div class="form-group mb-3">
+        <label>Preferred Language</label>
+        <input type="text" name="preferred_language" class="form-control" value="{{ user.preferred_language }}">
+      </div>
+    </div>
+
+    <div class="card p-4 shadow-sm mb-4">
+      <h4 class="mb-3">Banking Information</h4>
+
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>Bank Name</label>
+          <input type="text" name="bank_name" class="form-control" value="{{ user.bank_name }}">
+        </div>
+        <div class="form-group col-md-6 mb-3">
+          <label>Bank Account Number</label>
+          <input type="text" name="bank_account_number" class="form-control" value="{{ user.bank_account_number }}">
+        </div>
+      </div>
+
+      <div class="form-row row">
+        <div class="form-group col-md-6 mb-3">
+          <label>SWIFT/BIC Code</label>
+          <input type="text" name="swift_code" class="form-control" value="{{ user.swift_code }}">
+        </div>
+        <div class="form-group col-md-3 mb-3">
+          <label>Bank Country</label>
+          <input type="text" name="bank_country" class="form-control" value="{{ user.bank_country }}">
+        </div>
+        <div class="form-group col-md-3 mb-3">
+          <label>Bank Currency</label>
+          <input type="text" name="bank_currency" class="form-control" value="{{ user.bank_currency }}">
+        </div>
+      </div>
+    </div>
+
+    <div class="text-end">
+      <button type="submit" class="btn btn-primary btn-lg">Update Profile</button>
+    </div>
+  </form>
+</div>
 
 {% endblock %}
